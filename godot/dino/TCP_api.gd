@@ -22,7 +22,7 @@ func _ready() -> void:
 		print('Connected')
 
 func conncet():
-	stream.connect_to_host("LinuxNode",10003)
+	stream.connect_to_host("127.0.0.1",10003)
 
 
 	
