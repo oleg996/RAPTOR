@@ -1,0 +1,385 @@
+[gd_scene load_steps=23 format=3 uid="uid://cfbuhj0b4lyox"]
+
+[ext_resource type="Script" uid="uid://cgbflj8of4e6b" path="res://sim_system.gd" id="1_pmjbp"]
+[ext_resource type="Texture2D" uid="uid://bhb2ltvfs4tnt" path="res://Screenshot_20251211_115227.png" id="1_sk41h"]
+[ext_resource type="Script" uid="uid://4b6yop6r0qli" path="res://joint_motor.gd" id="2_fxs24"]
+[ext_resource type="Script" uid="uid://dthdqmag8lfwf" path="res://resetable.gd" id="3_j8wvp"]
+[ext_resource type="Script" uid="uid://b3q46k3wbbk6u" path="res://follower.gd" id="5_tvsrp"]
+[ext_resource type="Texture2D" uid="uid://myr8b5dl4pl7" path="res://asd.jpg" id="6_ih0mi"]
+
+[sub_resource type="Environment" id="Environment_fxs24"]
+reflected_light_source = 1
+
+[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_fxs24"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pmjbp"]
+size = Vector3(0.6171875, 0.21069336, 0.28027344)
+
+[sub_resource type="BoxMesh" id="BoxMesh_j8wvp"]
+size = Vector3(0.6, 0.2, 0.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_tvsrp"]
+size = Vector3(0.34179688, 0.08959961, 0.10546875)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ih0mi"]
+size = Vector3(0.3, 0.1, 0.1)
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_tvsrp"]
+rough = true
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ih0mi"]
+radius = 0.052246094
+height = 0.2919922
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ih0mi"]
+size = Vector3(0.1, 0.1, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_6lewv"]
+size = Vector3(0.1, 0.1, 0.1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6lewv"]
+size = Vector3(0.40867615, 0.1, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_u64xo"]
+size = Vector3(0.7, 0.1, 0.1)
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_j8wvp"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_tu234"]
+size = Vector3(0.4, 0.1, 0.1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6lewv"]
+albedo_texture = ExtResource("6_ih0mi")
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 1.3
+emission_operator = 1
+emission_texture = ExtResource("6_ih0mi")
+uv1_scale = Vector3(50, 50, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_u64xo"]
+size = Vector2(100, 100)
+
+[node name="Main3d" type="Node3D"]
+script = ExtResource("1_pmjbp")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_fxs24")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="WorldEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 0.54665744, 0.8373563, 0, -0.8373563, 0.54665744, 0, 0, 0)
+directional_shadow_mode = 0
+sky_mode = 1
+
+[node name="floor" type="StaticBody3D" parent="."]
+collision_layer = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="floor"]
+shape = SubResource("WorldBoundaryShape3D_fxs24")
+
+[node name="Sprite3D" type="Sprite3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6055267, 0.3777604, 0)
+visible = false
+modulate = Color(0.1467042, 0.1467042, 0.1467042, 1)
+texture = ExtResource("1_sk41h")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.77594733, 0.32034376, -0.5434019, 0, 0.861452, 0.50783914, 0.6307977, -0.39405644, 0.66844136, -0.2937169, 1.8915538, 2.5034194)
+script = ExtResource("5_tvsrp")
+track = NodePath("../dino/body")
+
+[node name="dino" type="Node3D" parent="."]
+transform = Transform3D(0.9999998, 0, 0, 0, 0.99999994, 0, 0, 0, 0.9999997, -0.098, 0.29602075, 0.507)
+
+[node name="body_bleg1" type="HingeJoint3D" parent="dino"]
+transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, -0.28044832, 0.6530373, 0.14916861)
+node_a = NodePath("../body")
+node_b = NodePath("../bleg1")
+angular_limit/enable = true
+angular_limit/upper = 1.4957472
+angular_limit/lower = -1.4940019
+script = ExtResource("2_fxs24")
+max_tor = 80
+
+[node name="body_fleg1" type="HingeJoint3D" parent="dino"]
+transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, -0.28044832, 0.6530373, -0.14899999)
+node_a = NodePath("../body")
+node_b = NodePath("../fleg1")
+angular_limit/enable = true
+angular_limit/upper = 1.4957472
+angular_limit/lower = -1.4940019
+script = ExtResource("2_fxs24")
+max_tor = 80
+
+[node name="body_tail1" type="HingeJoint3D" parent="dino"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.4355647, 0.6599815, 0.0024081469)
+node_a = NodePath("../body")
+node_b = NodePath("../tail1")
+angular_limit/enable = true
+angular_limit/upper = 0.6981317
+angular_limit/lower = -0.6981317
+script = ExtResource("2_fxs24")
+max_tor = 30
+
+[node name="body_neck1" type="HingeJoint3D" parent="dino"]
+transform = Transform3D(-0.6484388, 0.7612666, 0, -0.7612667, -0.64843875, 0, 0, 0, 0.9999999, 0.3403606, 0.79043686, -0.002266705)
+node_a = NodePath("../body")
+node_b = NodePath("../neck1")
+exclude_nodes_from_collision = false
+angular_limit/enable = true
+angular_limit/upper = 0.87266463
+angular_limit/lower = -0.87266463
+script = ExtResource("2_fxs24")
+max_tor = 40
+
+[node name="body" type="RigidBody3D" parent="dino"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024869919, 0.6542902, 0)
+rotation_order = 4
+collision_mask = 2
+mass = 4.0
+inertia = Vector3(1, 1, 1)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.03491211, -0.005229473, 0)
+shape = SubResource("BoxShape3D_pmjbp")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+mesh = SubResource("BoxMesh_j8wvp")
+
+[node name="bleg1" type="RigidBody3D" parent="dino"]
+transform = Transform3D(0.57620406, 0.8173058, 0, -0.81730586, 0.5762041, 0, 0, 0, 0.99999994, -0.18036994, 0.49948397, 0.14916861)
+collision_mask = 2
+mass = 4.0
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/bleg1"]
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.066649914, -0.0052291155, 0)
+shape = SubResource("BoxShape3D_tvsrp")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/bleg1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+mesh = SubResource("BoxMesh_ih0mi")
+
+[node name="bleg1_bleg2" type="HingeJoint3D" parent="dino/bleg1"]
+transform = Transform3D(0.576204, -0.8173059, 0, 0.81730586, 0.576204, 0, 0, 0, 1, 0.09217912, -0.0070411563, -5.9604645e-08)
+node_a = NodePath("..")
+node_b = NodePath("../../bleg2")
+angular_limit/enable = true
+angular_limit/upper = 1.0471976
+angular_limit/lower = -1.0471976
+script = ExtResource("2_fxs24")
+max_tor = 40
+
+[node name="bleg2" type="RigidBody3D" parent="dino"]
+transform = Transform3D(-0.84879625, 0.5287196, 0, -0.5287197, -0.84879637, 0, 0, 0, 0.9999999, -0.32456294, 0.28577995, 0.14916855)
+collision_mask = 2
+mass = 2.0
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/bleg2"]
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+shape = SubResource("BoxShape3D_tvsrp")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/bleg2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+mesh = SubResource("BoxMesh_ih0mi")
+
+[node name="bleg2_bleg3" type="HingeJoint3D" parent="dino/bleg2"]
+transform = Transform3D(-0.8487965, -0.5287198, 0, 0.5287198, -0.84879655, 0, 0, 0, 0.99999994, 0.1109962, 0.003534466, 0)
+node_a = NodePath("..")
+node_b = NodePath("../../bleg3")
+angular_limit/enable = true
+angular_limit/upper = 1.0471976
+angular_limit/lower = -1.0471976
+script = ExtResource("2_fxs24")
+max_tor = 20
+
+[node name="bleg3" type="RigidBody3D" parent="dino"]
+transform = Transform3D(-0.07396912, -0.9972604, 0, 0.9972606, -0.073969185, 0, 0, 0, 0.9999998, -0.41212374, 0.2080451, 0.14916855)
+collision_mask = 2
+physics_material_override = SubResource("PhysicsMaterial_tvsrp")
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/bleg3"]
+transform = Transform3D(-4.4703484e-08, -0.9999997, 0, 0.9999997, -4.4703484e-08, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+shape = SubResource("CapsuleShape3D_ih0mi")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/bleg3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+mesh = SubResource("BoxMesh_ih0mi")
+
+[node name="fleg1" type="RigidBody3D" parent="dino"]
+transform = Transform3D(0.57620406, 0.8173058, 0, -0.81730586, 0.5762041, 0, 0, 0, 0.99999994, -0.18036994, 0.49948397, -0.14899999)
+collision_mask = 2
+mass = 4.0
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/fleg1"]
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.066649914, -0.0052291155, 0)
+shape = SubResource("BoxShape3D_tvsrp")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/fleg1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+mesh = SubResource("BoxMesh_ih0mi")
+
+[node name="fleg1_fleg2" type="HingeJoint3D" parent="dino/fleg1"]
+transform = Transform3D(0.576204, -0.8173059, 0, 0.81730574, 0.576204, 0, 0, 0, 1, 0.09217912, -0.0070411563, 2.9802322e-08)
+node_a = NodePath("..")
+node_b = NodePath("../../fleg2")
+angular_limit/enable = true
+angular_limit/upper = 1.0471976
+angular_limit/lower = -1.0471976
+script = ExtResource("2_fxs24")
+max_tor = 40
+
+[node name="fleg2" type="RigidBody3D" parent="dino"]
+transform = Transform3D(-0.8487962, 0.52871954, 0, -0.5287197, -0.84879637, 0, 0, 0, 0.9999998, -0.3245629, 0.28577995, -0.14899996)
+collision_mask = 2
+mass = 2.0
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/fleg2"]
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+shape = SubResource("BoxShape3D_tvsrp")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/fleg2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+mesh = SubResource("BoxMesh_ih0mi")
+
+[node name="fleg2_fleg3" type="HingeJoint3D" parent="dino/fleg2"]
+transform = Transform3D(-0.84879625, -0.5287197, 0, 0.52871966, -0.84879637, 0, 0, 0, 0.99999976, 0.11099616, 0.0035344958, 2.9802322e-08)
+node_a = NodePath("..")
+node_b = NodePath("../../fleg3")
+angular_limit/enable = true
+angular_limit/upper = 1.0471976
+angular_limit/lower = -1.0471976
+script = ExtResource("2_fxs24")
+max_tor = 20
+
+[node name="fleg3" type="RigidBody3D" parent="dino"]
+transform = Transform3D(-0.07396908, -0.9972602, 0, 0.9972606, -0.073969185, 0, 0, 0, 0.9999997, -0.41212374, 0.2080451, -0.14899993)
+collision_mask = 2
+physics_material_override = SubResource("PhysicsMaterial_tvsrp")
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/fleg3"]
+transform = Transform3D(-4.4703484e-08, -0.9999997, 0, 0.9999997, -4.4703484e-08, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+shape = SubResource("CapsuleShape3D_ih0mi")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/fleg3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+mesh = SubResource("BoxMesh_ih0mi")
+
+[node name="tail1" type="RigidBody3D" parent="dino"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 0.99999994, 0, -1, -4.3711385e-08, -0.47836983, 0.63314503, 0.0024081466)
+collision_mask = 2
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/tail1"]
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, 0, 0, 0)
+shape = SubResource("BoxShape3D_ih0mi")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/tail1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0053762197, -0.002698183, 0)
+mesh = SubResource("BoxMesh_6lewv")
+
+[node name="tail1_tail2" type="HingeJoint3D" parent="dino/tail1"]
+transform = Transform3D(1, 0, 0, 0, -4.3711385e-08, -0.9999999, 0, 1, -4.371139e-08, -0.13988698, 0.007296562, 0.0030083656)
+node_a = NodePath("..")
+node_b = NodePath("../../tail2")
+angular_limit/enable = true
+angular_limit/upper = 0.6981317
+angular_limit/lower = -0.6981317
+script = ExtResource("2_fxs24")
+max_tor = 20
+
+[node name="tail2" type="RigidBody3D" parent="dino"]
+transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.9999999, -0.6211315, 0.6361534, -0.0019176006)
+collision_mask = 2
+mass = 2.0
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/tail2"]
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 1, 0, 0, 0, 1, -0.3174895, 0, 0)
+shape = SubResource("BoxShape3D_6lewv")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/tail2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.31161296, -0.002698183, 0)
+mesh = SubResource("BoxMesh_u64xo")
+skeleton = NodePath("../../tail2")
+
+[node name="neck1" type="RigidBody3D" parent="dino"]
+transform = Transform3D(-0.6484388, 0.76126665, 0, -0.7612667, -0.6484388, 0, 0, 0, 0.9999999, 0.33860034, 0.7959281, 0.00070410967)
+collision_mask = 2
+mass = 4.5
+physics_material_override = SubResource("PhysicsMaterial_j8wvp")
+inertia = Vector3(0.2, 0.2, 0.2)
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 1
+script = ExtResource("3_j8wvp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="dino/neck1"]
+transform = Transform3D(1, 2.9802319e-08, 0, -2.9802305e-08, 1, 0, 0, 0, 1, -0.15660864, 0, 0)
+shape = SubResource("BoxShape3D_6lewv")
+debug_color = Color(0.9255163, 0.3568733, 0, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="dino/neck1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15485828, -0.002698183, 0)
+mesh = SubResource("BoxMesh_tu234")
+skeleton = NodePath("../../tail2")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_6lewv")
+mesh = SubResource("PlaneMesh_u64xo")
+
+[node name="Timer" type="Timer" parent="."]
+wait_time = 10.0
+autostart = true
+
+[connection signal="timeout" from="Timer" to="." method="FPS_TIMER"]

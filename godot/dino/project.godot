@@ -1,0 +1,51 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="New Game Project"
+run/main_scene="uid://cfbuhj0b4lyox"
+config/features=PackedStringArray("4.5", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+TcpApi="*res://TCP_api.gd"
+
+[display]
+
+window/size/viewport_width=648
+window/vsync/vsync_mode=0
+
+[physics]
+
+2d/run_on_separate_thread=true
+3d/run_on_separate_thread=true
+common/physics_ticks_per_second=120
+2d/physics_engine="GodotPhysics2D"
+3d/physics_engine="Jolt Physics"
+3d/default_linear_damp=0.3
+3d/default_angular_damp=0.3
+3d/solver/default_contact_bias=0.0
+
+[rendering]
+
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
+lights_and_shadows/positional_shadow/soft_shadow_filter_quality=0
+reflections/specular_occlusion/enabled=false
+textures/default_filters/anisotropic_filtering_level=0
+camera/depth_of_field/depth_of_field_bokeh_shape=0
+environment/ssao/quality=0
+environment/ssil/quality=0
+environment/glow/upscale_mode=0
+environment/screen_space_reflection/roughness_quality=0
+environment/subsurface_scattering/subsurface_scattering_quality=0
+global_illumination/sdfgi/frames_to_converge=0
+environment/volumetric_fog/use_filter=0
