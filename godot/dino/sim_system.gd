@@ -156,11 +156,11 @@ func calculate_revard():
 	pen += 	pow($dino/body_fleg1.pow,2) + pow($dino/fleg1/fleg1_fleg2.pow,2) + pow($dino/fleg2/fleg2_fleg3.pow,2)
 	pen += 	pow($dino/body_tail1.pow,2) + pow($dino/tail1/tail1_tail2.pow,2) + pow($dino/body_neck1.pow,2)
 	
-	var forv_r = $dino/body.linear_velocity.x - abs($dino/body.linear_velocity.z)*0.2
+	var forv_r = -abs($dino/body.linear_velocity.x) - abs($dino/body.linear_velocity.z)
 	
 	
 	
-	var rev = forv_r - pen * 0.05 + 0.1
+	var rev = forv_r*0.5 - pen * 0.05 + 0.6
 	return rev
 	
 func reset():

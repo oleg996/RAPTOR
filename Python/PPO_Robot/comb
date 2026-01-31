@@ -5,40 +5,46 @@ import os
 
 class Config:
     # Environment parameters
-    ENV_NAME = "HalfCheetah-v5"
+    ENV_NAME = "HalfCheetah-v5"  # Name of the OpenAI Gym environment to train on
+
     # Training parameters
-    MAX_EPISODES = 10000
-    MAX_TIMESTEPS = 1000
-    UPDATE_TIMESTEP = 8192 
-    LOG_INTERVAL = 20
-    BATCH_SIZE = 1024
-    REVARD_SCALE = 0.1
+    MAX_EPISODES = 40000  # Maximum number of training episodes
+    MAX_TIMESTEPS = 1000  # Maximum number of timesteps per episode
+    UPDATE_TIMESTEP = 8192  # Number of timesteps between policy updates
+    LOG_INTERVAL = 20  # Interval (in episodes) for logging training progress
+    BATCH_SIZE = 1024  # Batch size for PPO updates
+    REWARD_SCALE = 0.1  # Scaling factor for rewards (to normalize them)
 
 
     # PPO hyperparameters
-    ACTION_STD = 0.5
-    ACTION_STD_MIN = 0.1
-    LEARNING_RATE = 5e-5
-    GAMMA = 0.99
-    GAE_LAMBDA = 0.95
-    K_EPOCHS = 10
-    EPS_CLIP = 0.2
-    ENTROPY_PEN = 0.001
-    TARGET_KL = 0.03
+    ACTION_STD = 0.5  # Initial standard deviation for action distribution
+    ACTION_STD_MIN = 0.1  # Minimum standard deviation for action distribution (annealing)
+    LEARNING_RATE = 1e-4  # Learning rate for the optimizer
+    GAMMA = 0.99  # Discount factor for future rewards
+    GAE_LAMBDA = 0.95  # GAE (Generalized Advantage Estimation) lambda parameter
+    K_EPOCHS = 10  # Number of PPO epochs per update
+    EPS_CLIP = 0.2  # PPO clipping parameter for policy update
+    ENTROPY_PEN = 0.005  # Entropy coefficient for encouraging exploration
+    TARGET_KL = 0.03  # Target KL divergence for early stopping updates
 
-    POLICY_CLIP = 0.5
+    POLICY_CLIP = 0.5  # Clipping parameter for value function updates
 
 
 
     # Model parameters
-    HIDDEN_UNITS = [256,256]
-    DEVICE = "cuda"
+    HIDDEN_UNITS = [256,256]  # Neural network architecture: two hidden layers with 256 units each
+    DEVICE = "cuda"  # Device to run training on ('cuda' for GPU, 'cpu' for CPU)
 
     # Save/Load paths
-    MODEL_DIR = "models"
-    MODEL_NAME = "tests.pth"
-    TENSORBOARD_LOG_DIR = "runs"
-    LOAD_MODEL = True
+    MODEL_DIR = "models"  # Directory to save trained models
+    MODEL_NAME = "tests.pth"  # Filename for the saved model
+    TENSORBOARD_LOG_DIR = "runs"  # Directory for TensorBoard logs
+    LOAD_MODEL = False  # Whether to load a pre-trained model at the start
+
+
+    BACKUP_DIR = "./models/backups"      # Separate directory for backups
+    BACKUP_INTERVAL = 3600               # Seconds (3600 = 1 hour)
+    MAX_BACKUPS = 5                      # Keep only last 5 backups (0 = unlimited)
 
     def __init__(self):
         # Create directories if they don't exist
@@ -369,8 +375,9 @@ import os
 import tcp.Tcp_env
 import inputNorm
 from torch.utils.tensorboard import SummaryWriter
-
-
+import time  # ADDED
+import datetime  # ADDED
+import glob  # ADDED (for cleanup)
 
 def main():
     # Configuration
@@ -398,9 +405,19 @@ def main():
     total_timesteps = 0
 
     norm = inputNorm.RunningMeanStd(state_dim)
-
-
-
+    
+    # ==================== BACKUP SETUP ====================
+    # Create backup directory (can also add to your Config class)
+    backup_dir = getattr(config, 'BACKUP_DIR', os.path.join(config.MODEL_DIR, 'backups'))
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # Backup configuration
+    backup_interval = getattr(config, 'BACKUP_INTERVAL', 3600)  # 1 hour = 3600 seconds
+    max_backups = getattr(config, 'MAX_BACKUPS', 5)  # Keep only last 5 backups
+    last_backup_time = time.time()
+    
+    print(f"Backups enabled: every {backup_interval/3600:.1f}h to '{backup_dir}'")
+    # ======================================================
 
     final_model_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
     if config.LOAD_MODEL:
@@ -520,17 +537,64 @@ def main():
                   f'Last Reward: {episode_reward:8.2f}')
             writer.add_scalar("reward/episode_reward", avg_reward, i_episode)
             writer.add_scalar("reward/episode_length", avg_length, i_episode)
+        
+        # ==================== PERIODIC BACKUP ====================
+        current_time = time.time()
+        if current_time - last_backup_time >= backup_interval:
+            try:
+                # Create timestamped filename
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_filename = f"backup_{timestamp}_ep{i_episode}_step{total_timesteps}.pth"
+                backup_path = os.path.join(backup_dir, backup_filename)
+                
+                # Prepare checkpoint (same content as final save + metadata)
+                checkpoint = {
+                    'policy_state_dict': ppo_agent.policy.state_dict(),
+                    'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
+                    'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+                    'obs_mean': norm.mean,
+                    'obs_var': norm.var,
+                    'obs_count': norm.n,
+                    'episode': i_episode,
+                    'timestep': total_timesteps,
+                    'timestamp': timestamp
+                }
+                
+                # Save to temporary file first, then rename (atomic operation)
+                temp_path = backup_path + ".tmp"
+                torch.save(checkpoint, temp_path)
+                os.replace(temp_path, backup_path)
+                
+                print(f"[BACKUP] Saved: {backup_filename}")
+                last_backup_time = current_time
+                
+                # Cleanup old backups (keep only most recent N)
+                if max_backups > 0:
+                    backup_files = sorted(
+                        glob.glob(os.path.join(backup_dir, "backup_*.pth")),
+                        key=os.path.getmtime
+                    )
+                    if len(backup_files) > max_backups:
+                        for old_file in backup_files[:-max_backups]:
+                            os.remove(old_file)
+                            print(f"[BACKUP] Removed old: {os.path.basename(old_file)}")
+                            
+            except Exception as e:
+                print(f"[BACKUP WARNING] Failed to create backup: {e}")
+                # Continue training even if backup fails
+        # =========================================================
 
     # Save final model
     
-
     checkpoint = {
-    'policy_state_dict': ppo_agent.policy.state_dict(),
-    'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
-    'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
-    'obs_mean': norm.mean,
-    'obs_var': norm.var,
-    'obs_count': norm.n # Important if you want to RESUME training later
+        'policy_state_dict': ppo_agent.policy.state_dict(),
+        'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
+        'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+        'obs_mean': norm.mean,
+        'obs_var': norm.var,
+        'obs_count': norm.n, # Important if you want to RESUME training later
+        'episode': config.MAX_EPISODES,
+        'timestep': total_timesteps
     }
 
     torch.save(checkpoint, final_model_path)

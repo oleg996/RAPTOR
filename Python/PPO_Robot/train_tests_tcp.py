@@ -8,8 +8,9 @@ import os
 import tcp.Tcp_env
 import inputNorm
 from torch.utils.tensorboard import SummaryWriter
-
-
+import time  # ADDED
+import datetime  # ADDED
+import glob  # ADDED (for cleanup)
 
 def main():
     # Configuration
@@ -37,9 +38,19 @@ def main():
     total_timesteps = 0
 
     norm = inputNorm.RunningMeanStd(state_dim)
-
-
-
+    
+    # ==================== BACKUP SETUP ====================
+    # Create backup directory (can also add to your Config class)
+    backup_dir = getattr(config, 'BACKUP_DIR', os.path.join(config.MODEL_DIR, 'backups'))
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # Backup configuration
+    backup_interval = getattr(config, 'BACKUP_INTERVAL', 3600)  # 1 hour = 3600 seconds
+    max_backups = getattr(config, 'MAX_BACKUPS', 5)  # Keep only last 5 backups
+    last_backup_time = time.time()
+    
+    print(f"Backups enabled: every {backup_interval/3600:.1f}h to '{backup_dir}'")
+    # ======================================================
 
     final_model_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
     if config.LOAD_MODEL:
@@ -103,32 +114,33 @@ def main():
             done = terminated or truncated
 
             # Scaling reward is good
-            reward = reward * config.REVARD_SCALE
+            reward = reward * config.REWARD_SCALE
 
             # Store transition
             memory.rewards.append(reward)
-            memory.is_terminals.append(done)
+            memory.is_terminals.append(terminated)
 
             episode_reward += reward
             episode_length += 1
 
             # 4. Update Step
             if timestep >= config.UPDATE_TIMESTEP:
-                print("Updating timesteps")
+                # Check if last transition was a true termination
+                if memory.is_terminals[-1]:
+                    next_value = 0.0  # Don't bootstrap from reset state
+                else:
+                    # Only calculate value if not terminated (truncated or mid-episode)
+                    next_state_norm = norm.normalize(next_state_raw)
+                    next_state_norm = np.clip(next_state_norm, -10.0, 10.0)
+                    next_state_tensor = torch.FloatTensor(next_state_norm).to(device).unsqueeze(0)
+                    with torch.no_grad():
+                        _, next_val, _ = ppo_agent.policy_old.evaluate(
+                            next_state_tensor, 
+                            torch.zeros(1, action_dim).to(device),
+                            device
+                        )
+                        next_value = next_val.item()
                 
-                # Normalize the NEXT state for bootstrapping
-                next_state_norm = norm.normalize(next_state_raw)
-                next_state_norm = np.clip(next_state_norm, -10.0, 10.0)
-                next_state_tensor = torch.FloatTensor(next_state_norm).to(device).unsqueeze(0)
-        
-                with torch.no_grad():
-                    _, next_val, _ = ppo_agent.policy_old.evaluate(
-                        next_state_tensor, 
-                        torch.zeros(1, action_dim).to(device),
-                        device
-                    )
-                    next_value = next_val.item()
-
                 update_metrics = ppo_agent.update(memory, next_value)
                 for key, value in update_metrics.items():
                     writer.add_scalar(key, value, total_timesteps)
@@ -159,17 +171,64 @@ def main():
                   f'Last Reward: {episode_reward:8.2f}')
             writer.add_scalar("reward/episode_reward", avg_reward, i_episode)
             writer.add_scalar("reward/episode_length", avg_length, i_episode)
+        
+        # ==================== PERIODIC BACKUP ====================
+        current_time = time.time()
+        if current_time - last_backup_time >= backup_interval:
+            try:
+                # Create timestamped filename
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_filename = f"backup_{timestamp}_ep{i_episode}_step{total_timesteps}.pth"
+                backup_path = os.path.join(backup_dir, backup_filename)
+                
+                # Prepare checkpoint (same content as final save + metadata)
+                checkpoint = {
+                    'policy_state_dict': ppo_agent.policy.state_dict(),
+                    'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
+                    'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+                    'obs_mean': norm.mean,
+                    'obs_var': norm.var,
+                    'obs_count': norm.n,
+                    'episode': i_episode,
+                    'timestep': total_timesteps,
+                    'timestamp': timestamp
+                }
+                
+                # Save to temporary file first, then rename (atomic operation)
+                temp_path = backup_path + ".tmp"
+                torch.save(checkpoint, temp_path)
+                os.replace(temp_path, backup_path)
+                
+                print(f"[BACKUP] Saved: {backup_filename}")
+                last_backup_time = current_time
+                
+                # Cleanup old backups (keep only most recent N)
+                if max_backups > 0:
+                    backup_files = sorted(
+                        glob.glob(os.path.join(backup_dir, "backup_*.pth")),
+                        key=os.path.getmtime
+                    )
+                    if len(backup_files) > max_backups:
+                        for old_file in backup_files[:-max_backups]:
+                            os.remove(old_file)
+                            print(f"[BACKUP] Removed old: {os.path.basename(old_file)}")
+                            
+            except Exception as e:
+                print(f"[BACKUP WARNING] Failed to create backup: {e}")
+                # Continue training even if backup fails
+        # =========================================================
 
     # Save final model
     
-
     checkpoint = {
-    'policy_state_dict': ppo_agent.policy.state_dict(),
-    'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
-    'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
-    'obs_mean': norm.mean,
-    'obs_var': norm.var,
-    'obs_count': norm.n # Important if you want to RESUME training later
+        'policy_state_dict': ppo_agent.policy.state_dict(),
+        'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
+        'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+        'obs_mean': norm.mean,
+        'obs_var': norm.var,
+        'obs_count': norm.n, # Important if you want to RESUME training later
+        'episode': config.MAX_EPISODES,
+        'timestep': total_timesteps
     }
 
     torch.save(checkpoint, final_model_path)

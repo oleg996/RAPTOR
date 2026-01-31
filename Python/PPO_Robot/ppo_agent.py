@@ -147,8 +147,8 @@ class PPOAgent:
                 # --- CRITIC UPDATE ---
                 value_pred_clipped = mb_old_values + torch.clamp(
                     state_values - mb_old_values, 
-                    -self.config.EPS_CLIP, 
-                    self.config.EPS_CLIP
+                    -self.config.VALUE_CLIP, 
+                    self.config.VALUE_CLIP
                 )
                 loss_v_unclipped = (state_values - mb_returns) ** 2
                 loss_v_clipped = (value_pred_clipped - mb_returns) ** 2
@@ -179,6 +179,8 @@ class PPOAgent:
                 break
 
         self.policy_old.load_state_dict(self.policy.state_dict())
+
+        
 
         return {
             "loss/total": running_loss / update_count,

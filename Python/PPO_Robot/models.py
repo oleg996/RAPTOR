@@ -30,6 +30,7 @@ class ActorCritic(nn.Module):
         for hidden_dim in hidden_units:
             actor_layers.extend([
                 nn.Linear(input_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 nn.LeakyReLU() #other???
             ])
             input_dim = hidden_dim
@@ -43,6 +44,7 @@ class ActorCritic(nn.Module):
         for hidden_dim in hidden_units:
             critic_layers.extend([
                 nn.Linear(input_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 nn.LeakyReLU()
             ])
             input_dim = hidden_dim
