@@ -8,7 +8,7 @@ var data_to_send = [1.2,1.3,1.5,1.5]
 var data_to_recive = []
 
 
-var debug = false
+var debug = true
 
 var in_lenght = 40
 #4 bytes per digitt + 1 for reset?

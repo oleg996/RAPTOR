@@ -2,7 +2,7 @@ extends HingeJoint3D
 
 @export var max_tor = 1;
 
-var pow = 1
+var pow = 0
 
 
 

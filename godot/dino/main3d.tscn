@@ -115,8 +115,8 @@ transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.4
 node_a = NodePath("../body")
 node_b = NodePath("../tail1")
 angular_limit/enable = true
-angular_limit/upper = 0.6981317
-angular_limit/lower = -0.6981317
+angular_limit/upper = 0.87266463
+angular_limit/lower = -0.87266463
 script = ExtResource("2_fxs24")
 max_tor = 30
 
@@ -328,10 +328,10 @@ transform = Transform3D(1, 0, 0, 0, -4.3711385e-08, -0.9999999, 0, 1, -4.371139e
 node_a = NodePath("..")
 node_b = NodePath("../../tail2")
 angular_limit/enable = true
-angular_limit/upper = 0.6981317
-angular_limit/lower = -0.6981317
+angular_limit/upper = 0.0
+angular_limit/lower = 0.0
 script = ExtResource("2_fxs24")
-max_tor = 20
+max_tor = 30
 
 [node name="tail2" type="RigidBody3D" parent="dino"]
 transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.9999999, -0.6211315, 0.6361534, -0.0019176006)
