@@ -9,7 +9,7 @@ class Config:
 
     # Training parameters
     MAX_EPISODES = 40000  # Maximum number of training episodes
-    MAX_TIMESTEPS = 1000  # Maximum number of timesteps per episode
+    MAX_TIMESTEPS = 2048  # Maximum number of timesteps per episode
     UPDATE_TIMESTEP = 8192  # Number of timesteps between policy updates
     LOG_INTERVAL = 20  # Interval (in episodes) for logging training progress
     BATCH_SIZE = 1024  # Batch size for PPO updates
@@ -17,7 +17,7 @@ class Config:
 
 
     # PPO hyperparameters
-    ACTION_STD = 0.5  # Initial standard deviation for action distribution
+    ACTION_STD = 0.7  # Initial standard deviation for action distribution
     ACTION_STD_MIN = 0.1  # Minimum standard deviation for action distribution (annealing)
     LEARNING_RATE = 1e-4  # Learning rate for the optimizer
     GAMMA = 0.99  # Discount factor for future rewards
@@ -26,8 +26,13 @@ class Config:
     EPS_CLIP = 0.2  # PPO clipping parameter for policy update
     ENTROPY_PEN = 0.005  # Entropy coefficient for encouraging exploration
     TARGET_KL = 0.03  # Target KL divergence for early stopping updates
+    VALUE_CLIP = 1.0
+    POLICY_CLIP = 1.0
 
-    POLICY_CLIP = 0.5  # Clipping parameter for value function updates
+
+    ENTROPY_PEN_START = 0.01  # Higher initial exploration
+    ENTROPY_PEN_END = 0.001   # Lower final
+    ENTROPY_ANNEAL_STEPS = 20000  # Episodes to decay over 
 
 
 
@@ -37,7 +42,7 @@ class Config:
 
     # Save/Load paths
     MODEL_DIR = "models"  # Directory to save trained models
-    MODEL_NAME = "tests.pth"  # Filename for the saved model
+    MODEL_NAME = "latest.pth"  # Filename for the saved model
     TENSORBOARD_LOG_DIR = "runs"  # Directory for TensorBoard logs
     LOAD_MODEL = False  # Whether to load a pre-trained model at the start
 
@@ -50,6 +55,7 @@ class Config:
         # Create directories if they don't exist
         os.makedirs(self.MODEL_DIR, exist_ok=True)
         os.makedirs(self.TENSORBOARD_LOG_DIR,exist_ok=True)
+        os.makedirs(self.BACKUP_DIR, exist_ok=True)
 
  models.py:
 import torch
@@ -84,6 +90,7 @@ class ActorCritic(nn.Module):
         for hidden_dim in hidden_units:
             actor_layers.extend([
                 nn.Linear(input_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 nn.LeakyReLU() #other???
             ])
             input_dim = hidden_dim
@@ -97,6 +104,7 @@ class ActorCritic(nn.Module):
         for hidden_dim in hidden_units:
             critic_layers.extend([
                 nn.Linear(input_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 nn.LeakyReLU()
             ])
             input_dim = hidden_dim
@@ -322,8 +330,8 @@ class PPOAgent:
                 # --- CRITIC UPDATE ---
                 value_pred_clipped = mb_old_values + torch.clamp(
                     state_values - mb_old_values, 
-                    -self.config.EPS_CLIP, 
-                    self.config.EPS_CLIP
+                    -self.config.VALUE_CLIP, 
+                    self.config.VALUE_CLIP
                 )
                 loss_v_unclipped = (state_values - mb_returns) ** 2
                 loss_v_clipped = (value_pred_clipped - mb_returns) ** 2
@@ -354,6 +362,8 @@ class PPOAgent:
                 break
 
         self.policy_old.load_state_dict(self.policy.state_dict())
+
+        
 
         return {
             "loss/total": running_loss / update_count,
@@ -481,32 +491,33 @@ def main():
             done = terminated or truncated
 
             # Scaling reward is good
-            reward = reward * config.REVARD_SCALE
+            reward = reward * config.REWARD_SCALE
 
             # Store transition
             memory.rewards.append(reward)
-            memory.is_terminals.append(done)
+            memory.is_terminals.append(terminated)
 
             episode_reward += reward
             episode_length += 1
 
             # 4. Update Step
             if timestep >= config.UPDATE_TIMESTEP:
-                print("Updating timesteps")
+                # Check if last transition was a true termination
+                if memory.is_terminals[-1]:
+                    next_value = 0.0  # Don't bootstrap from reset state
+                else:
+                    # Only calculate value if not terminated (truncated or mid-episode)
+                    next_state_norm = norm.normalize(next_state_raw)
+                    next_state_norm = np.clip(next_state_norm, -10.0, 10.0)
+                    next_state_tensor = torch.FloatTensor(next_state_norm).to(device).unsqueeze(0)
+                    with torch.no_grad():
+                        _, next_val, _ = ppo_agent.policy_old.evaluate(
+                            next_state_tensor, 
+                            torch.zeros(1, action_dim).to(device),
+                            device
+                        )
+                        next_value = next_val.item()
                 
-                # Normalize the NEXT state for bootstrapping
-                next_state_norm = norm.normalize(next_state_raw)
-                next_state_norm = np.clip(next_state_norm, -10.0, 10.0)
-                next_state_tensor = torch.FloatTensor(next_state_norm).to(device).unsqueeze(0)
-        
-                with torch.no_grad():
-                    _, next_val, _ = ppo_agent.policy_old.evaluate(
-                        next_state_tensor, 
-                        torch.zeros(1, action_dim).to(device),
-                        device
-                    )
-                    next_value = next_val.item()
-
                 update_metrics = ppo_agent.update(memory, next_value)
                 for key, value in update_metrics.items():
                     writer.add_scalar(key, value, total_timesteps)

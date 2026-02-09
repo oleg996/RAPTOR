@@ -40,7 +40,7 @@ class Config:
 
     # Save/Load paths
     MODEL_DIR = "models"  # Directory to save trained models
-    MODEL_NAME = "tests.pth"  # Filename for the saved model
+    MODEL_NAME = "latest.pth"  # Filename for the saved model
     TENSORBOARD_LOG_DIR = "runs"  # Directory for TensorBoard logs
     LOAD_MODEL = False  # Whether to load a pre-trained model at the start
 
