@@ -1,121 +1,134 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributions import Normal
 import numpy as np
 
-class ActorCritic(nn.Module):
-    """
-    Combined Actor-Critic network for PPO.
+LOG_STD_MIN = -20
+LOG_STD_MAX = 2
 
-    Actor: Outputs mean of continuous action distribution
-    Critic: Outputs state value estimate
-    """
 
-    def __init__(self, state_dim, action_dim, action_std,action_std_min, hidden_units=[64, 32]):
-        """
-        Initialize the Actor-Critic network.
+class MLP(nn.Module):
+    """Shared MLP builder for all networks."""
 
-        Args:
-            state_dim (int): Dimension of state space
-            action_dim (int): Dimension of action space
-            action_std (float): Standard deviation for action distribution
-            hidden_units (list): List of hidden layer sizes
-        """
-        super(ActorCritic, self).__init__()
-        self.action_dim = action_dim
+    def __init__(self, input_dim, hidden_units, output_dim, output_activation=None):
+        super(MLP, self).__init__()
 
-        # Build actor network
-        actor_layers = []
-        input_dim = state_dim
+        layers = []
+        prev_dim = input_dim
+
         for hidden_dim in hidden_units:
-            actor_layers.extend([
-                nn.Linear(input_dim, hidden_dim),
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
                 nn.LayerNorm(hidden_dim),
-                nn.LeakyReLU() #other???
+                nn.ReLU(),
             ])
-            input_dim = hidden_dim
-        actor_layers.append(nn.Linear(input_dim, action_dim))
-        actor_layers.append(nn.Tanh())  # Bound output for environments like BipedalWalker
-        self.actor = nn.Sequential(*actor_layers)
+            prev_dim = hidden_dim
 
-        # Build critic network
-        critic_layers = []
-        input_dim = state_dim
-        for hidden_dim in hidden_units:
-            critic_layers.extend([
-                nn.Linear(input_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
-                nn.LeakyReLU()
-            ])
-            input_dim = hidden_dim
-        critic_layers.append(nn.Linear(input_dim, 1))
-        self.critic = nn.Sequential(*critic_layers)
+        layers.append(nn.Linear(prev_dim, output_dim))
+        if output_activation is not None:
+            layers.append(output_activation)
 
-        self.log_std = nn.Parameter(torch.ones(action_dim) * np.log(action_std),requires_grad=True)
-        self.action_std_min = action_std_min
+        self.net = nn.Sequential(*layers)
+        self._init_weights()
 
-        def init_weights(m):
+    def _init_weights(self):
+        for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=np.sqrt(2))
                 nn.init.constant_(m.bias, 0)
 
-        self.actor.apply(init_weights)
-        self.critic.apply(init_weights)
+    def forward(self, x):
+        return self.net(x)
 
-        # Special init for the output layers
-        # Actor output (gain=0.01 makes initial policy near-random/determistic, helps exploration)
-        nn.init.orthogonal_(self.actor[-2].weight, gain=0.01) 
-        # Critic output (gain=1.0)
-        nn.init.orthogonal_(self.critic[-1].weight, gain=1.0)
 
-    def forward(self):
-        """Not implemented as we use separate methods for actor and critic."""
-        raise NotImplementedError
+class GaussianActor(nn.Module):
+    """
+    Stochastic actor using Gaussian distribution.
+    Outputs mean and log_std, uses reparameterization trick.
+    """
 
-    def act(self, state, device):
+    def __init__(self, state_dim, action_dim, hidden_units, action_bound=1.0):
+        super(GaussianActor, self).__init__()
+
+        self.action_bound = action_bound
+
+        # Shared feature extractor
+        self.features = MLP(state_dim, hidden_units[:-1], hidden_units[-1])
+
+        # Separate heads for mean and log_std
+        self.mean_head = nn.Linear(hidden_units[-1], action_dim)
+        self.log_std_head = nn.Linear(hidden_units[-1], action_dim)
+
+        # Initialize output layers with small weights
+        nn.init.uniform_(self.mean_head.weight, -3e-3, 3e-3)
+        nn.init.uniform_(self.log_std_head.weight, -3e-3, 3e-3)
+
+    def forward(self, state):
+        """Get action distribution parameters."""
+        features = F.relu(self.features(state))
+        mean = self.mean_head(features)
+        log_std = self.log_std_head(features)
+        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        return mean, log_std
+
+    def sample(self, state):
         """
-        Select action given state.
-
-        Args:
-            state (torch.Tensor): Current state
-            device (torch.device): Device to run on
-
-        Returns:
-            tuple: (action, action_log_prob)
+        Sample action using reparameterization trick.
+        Returns: action, log_prob
         """
-        action_mean = self.actor(state)
-        action_std = torch.exp(self.log_std).clamp(min = self.action_std_min)
-        dist = Normal(action_mean, action_std)
+        mean, log_std = self.forward(state)
+        std = log_std.exp()
 
-        # Sample action
-        action = dist.sample()
+        # Reparameterization: sample from N(0,1) then transform
+        normal = Normal(mean, std)
+        x_t = normal.rsample()  # rsample() enables gradient flow
 
-        # Calculate log probability
-        action_logprob = dist.log_prob(action).sum(dim=-1)
+        # Apply tanh squashing
+        action = torch.tanh(x_t) * self.action_bound
 
-        return action.detach(), action_logprob.detach()
+        # Compute log probability with correction for tanh squashing
+        # log π(a|s) = log μ(u|s) - Σ log(1 - tanh²(u))
+        log_prob = normal.log_prob(x_t)
+        log_prob -= torch.log(self.action_bound * (1 - action.pow(2)) + 1e-6)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
 
-    def evaluate(self, state, action, device):
-        """
-        Evaluate state-action pairs.
+        return action, log_prob
 
-        Args:
-            state (torch.Tensor): Batch of states
-            action (torch.Tensor): Batch of actions
-            device (torch.device): Device to run on
+    def get_action(self, state, deterministic=False):
+        """Get action for environment interaction."""
+        mean, log_std = self.forward(state)
 
-        Returns:
-            tuple: (action_logprobs, state_values, distribution_entropy)
-        """
-        action_mean = self.actor(state)
-        action_std = torch.exp(self.log_std).clamp(min = self.action_std_min)
-        dist = Normal(action_mean, action_std)
+        if deterministic:
+            return torch.tanh(mean) * self.action_bound
+        else:
+            std = log_std.exp()
+            normal = Normal(mean, std)
+            x_t = normal.rsample()
+            return torch.tanh(x_t) * self.action_bound
 
-        # Calculate log probabilities and entropy
-        action_logprobs = dist.log_prob(action).sum(dim=-1)
-        dist_entropy = dist.entropy().sum(dim=-1)
 
-        # Get state values
-        state_values = self.critic(state)
+class QNetwork(nn.Module):
+    """
+    Q-network that takes state and action as input.
+    SAC uses two Q-networks to mitigate overestimation.
+    """
 
-        return action_logprobs, torch.squeeze(state_values), dist_entropy
+    def __init__(self, state_dim, action_dim, hidden_units):
+        super(QNetwork, self).__init__()
+
+        # Q1
+        self.q1 = MLP(state_dim + action_dim, hidden_units, 1)
+
+        # Q2 (separate network)
+        self.q2 = MLP(state_dim + action_dim, hidden_units, 1)
+
+    def forward(self, state, action):
+        """Get Q-values from both networks."""
+        sa = torch.cat([state, action], dim=-1)
+        return self.q1(sa), self.q2(sa)
+
+    def q1_forward(self, state, action):
+        """Get Q-value from Q1 only (for policy update)."""
+        sa = torch.cat([state, action], dim=-1)
+        return self.q1(sa)

@@ -1,19 +1,20 @@
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
-from config import Config
-from ppo_agent import PPOAgent
-from memory import Memory
 import os
-import tcp.Tcp_env
+import time
+import datetime
+import glob
+
+from config import Config
+from sac_agent import SACAgent
 import inputNorm
 from torch.utils.tensorboard import SummaryWriter
-import time  # ADDED
-import datetime  # ADDED
-import glob  # ADDED (for cleanup)
+
+# Replace with your environment
+import tcp.Tcp_env
+
 
 def main():
-    # Configuration
     config = Config()
     device = torch.device(config.DEVICE)
     print(f"Using device: {device}")
@@ -24,216 +25,179 @@ def main():
     state_dim = 40
     action_dim = 9
 
-    # Initialize agent and memory
-    ppo_agent = PPOAgent(state_dim, action_dim, config, device)
-    memory = Memory()
+    # Initialize SAC agent
+    agent = SACAgent(state_dim, action_dim, config, device)
 
-    # Training metrics
-    avg_rewards = []
-    avg_lengths = []
-    timestep = 0
+    # State normalization
+    norm = inputNorm.RunningMeanStd(state_dim)
 
+    # Logging
     writer = SummaryWriter(log_dir=config.TENSORBOARD_LOG_DIR)
 
+    # Metrics
+    episode_rewards = []
+    episode_lengths = []
     total_timesteps = 0
 
-    norm = inputNorm.RunningMeanStd(state_dim)
-    
-    # ==================== BACKUP SETUP ====================
-    # Create backup directory (can also add to your Config class)
-    backup_dir = getattr(config, 'BACKUP_DIR', os.path.join(config.MODEL_DIR, 'backups'))
+    # Backup setup
+    backup_dir = config.BACKUP_DIR
     os.makedirs(backup_dir, exist_ok=True)
-    
-    # Backup configuration
-    backup_interval = getattr(config, 'BACKUP_INTERVAL', 3600)  # 1 hour = 3600 seconds
-    max_backups = getattr(config, 'MAX_BACKUPS', 5)  # Keep only last 5 backups
     last_backup_time = time.time()
-    
-    print(f"Backups enabled: every {backup_interval/3600:.1f}h to '{backup_dir}'")
-    # ======================================================
 
-    final_model_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
+    # Load model if specified
     if config.LOAD_MODEL:
-        print(f"loading model")
+        checkpoint_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
+        if os.path.exists(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            agent.load(checkpoint_path)
 
-        # 3. Load the checkpoint
-        checkpoint = torch.load(final_model_path, map_location=device,weights_only=False)
+            # Load normalizer
+            if 'obs_mean' in checkpoint:
+                norm.mean = checkpoint['obs_mean']
+                norm.var = checkpoint['obs_var']
+                norm.n = checkpoint['obs_count']
 
-        # 4. Restore Model
-        ppo_agent.policy.load_state_dict(checkpoint['policy_state_dict'])
-        ppo_agent.policy_old.load_state_dict(checkpoint['policy_state_dict'])
-        #ppo_agent.optimizer_actor.load_state_dict(checkpoint['optimizer_actor_state_dict'])
-        #ppo_agent.optimizer_critic.load_state_dict(checkpoint['optimizer_critic_state_dict'])
+            print("Model loaded successfully.")
 
-
-        # 5. Restore Normalizer Stats
-        norm.mean = checkpoint['obs_mean']
-        norm.var = checkpoint['obs_var']
-        norm.n = checkpoint['obs_count'] # Only needed if resuming training
-
-
-        new_log_std = torch.ones(action_dim) * np.log(config.ACTION_STD)
-        
-        # # We must update both policy and policy_old
-        # with torch.no_grad():
-        #     ppo_agent.policy.log_std.copy_(new_log_std)
-        #     ppo_agent.policy_old.log_std.copy_(new_log_std)
-            
-        # print(f"Exploration noise reset to std={config.ACTION_STD}")
-
-
-
-        print("Model and Stats loaded successfully.")
-
-
-
-    print(f"Starting training on {config.ENV_NAME}")
+    print(f"Starting SAC training on {config.ENV_NAME}")
     print(f"State dim: {state_dim}, Action dim: {action_dim}")
+    print(f"Buffer will start training after {config.MIN_BUFFER_SIZE} steps")
 
-    # Training loop
-    for i_episode in range(1, config.MAX_EPISODES + 1):
+    # ========== Training Loop ==========
+    for episode in range(1, config.MAX_EPISODES + 1):
         state, _ = env.reset()
         episode_reward = 0
         episode_length = 0
 
-
         for t in range(config.MAX_TIMESTEPS):
-            timestep += 1
             total_timesteps += 1
-            
-            # 1. Normalize State
-            norm.update(np.array([state])) 
-            state = norm.normalize(state)
-            state = np.clip(state, -10.0, 10.0)
 
-            # 2. Select Action
-            action = ppo_agent.select_action(state, memory)
+            # Normalize state
+            norm.update(np.array([state]))
+            state_norm = norm.normalize(state)
+            state_norm = np.clip(state_norm, -10.0, 10.0)
 
-            # 3. Step
-            next_state_raw, reward, terminated, truncated, _ = env.step(action)
+            # Select action
+            # Use random actions initially to fill buffer
+            if len(agent.replay_buffer) < config.MIN_BUFFER_SIZE:
+                action = np.random.uniform(-1, 1, action_dim)
+            else:
+                action = agent.select_action(state_norm, deterministic=False)
+
+            # Environment step
+            next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
 
-            # Scaling reward is good
-            reward = reward * config.REWARD_SCALE
+            # Normalize next state for storage
+            next_state_norm = norm.normalize(next_state)
+            next_state_norm = np.clip(next_state_norm, -10.0, 10.0)
 
-            # Store transition
-            memory.rewards.append(reward)
-            memory.is_terminals.append(terminated)
+            # Store transition (with normalized states)
+            agent.store_transition(
+                state_norm, action, reward * config.REWARD_SCALE,
+                next_state_norm, float(terminated)  # Use terminated, not done
+            )
 
             episode_reward += reward
             episode_length += 1
 
-            # 4. Update Step
-            if timestep >= config.UPDATE_TIMESTEP:
-                # Check if last transition was a true termination
-                if memory.is_terminals[-1]:
-                    next_value = 0.0  # Don't bootstrap from reset state
-                else:
-                    # Only calculate value if not terminated (truncated or mid-episode)
-                    next_state_norm = norm.normalize(next_state_raw)
-                    next_state_norm = np.clip(next_state_norm, -10.0, 10.0)
-                    next_state_tensor = torch.FloatTensor(next_state_norm).to(device).unsqueeze(0)
-                    with torch.no_grad():
-                        _, next_val, _ = ppo_agent.policy_old.evaluate(
-                            next_state_tensor, 
-                            torch.zeros(1, action_dim).to(device),
-                            device
-                        )
-                        next_value = next_val.item()
-                
-                update_metrics = ppo_agent.update(memory, next_value)
-                for key, value in update_metrics.items():
-                    writer.add_scalar(key, value, total_timesteps)
+            # ========== SAC Updates ==========
+            # Update after each step (or multiple times per step)
+            if len(agent.replay_buffer) >= config.MIN_BUFFER_SIZE:
+                for _ in range(config.GRADIENT_STEPS):
+                    metrics = agent.update()
 
-                memory.clear_memory()
-                timestep = 0
+                    if metrics and total_timesteps % 1000 == 0:
+                        for key, value in metrics.items():
+                            writer.add_scalar(key, value, total_timesteps)
 
             if done:
                 break
-                
-            # Update state for next iteration
-            state = next_state_raw
 
+            state = next_state
 
-        avg_rewards.append(episode_reward)
-        avg_lengths.append(episode_length)
+        # ========== Episode Logging ==========
+        episode_rewards.append(episode_reward)
+        episode_lengths.append(episode_length)
 
+        if episode % config.LOG_INTERVAL == 0:
+            avg_reward = np.mean(episode_rewards[-config.LOG_INTERVAL:])
+            avg_length = int(np.mean(episode_lengths[-config.LOG_INTERVAL:]))
 
+            print(
+                f"Episode {episode:5d} | "
+                f"Avg Reward: {avg_reward:8.2f} | "
+                f"Avg Length: {avg_length:4d} | "
+                f"Buffer: {len(agent.replay_buffer):7d} | "
+                f"Alpha: {agent.alpha:.4f}"
+            )
 
+            writer.add_scalar("reward/episode_reward", avg_reward, episode)
+            writer.add_scalar("reward/episode_length", avg_length, episode)
+            writer.add_scalar("buffer/size", len(agent.replay_buffer), episode)
+            writer.add_scalar("sac/alpha", agent.alpha, episode)
 
-        # Print progress
-        if i_episode % config.LOG_INTERVAL == 0:
-            avg_reward = np.mean(avg_rewards[-config.LOG_INTERVAL:])
-            avg_length = int(np.mean(avg_lengths[-config.LOG_INTERVAL:]))
-            print(f'Episode {i_episode:5d} | '
-                  f'Avg Reward: {avg_reward:8.2f} | '
-                  f'Avg Length: {avg_length:4d} | '
-                  f'Last Reward: {episode_reward:8.2f}')
-            writer.add_scalar("reward/episode_reward", avg_reward, i_episode)
-            writer.add_scalar("reward/episode_length", avg_length, i_episode)
-        
-        # ==================== PERIODIC BACKUP ====================
+        # ========== Periodic Backup ==========
         current_time = time.time()
-        if current_time - last_backup_time >= backup_interval:
+        if current_time - last_backup_time >= config.BACKUP_INTERVAL:
             try:
-                # Create timestamped filename
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_filename = f"backup_{timestamp}_ep{i_episode}_step{total_timesteps}.pth"
+                backup_filename = f"sac_backup_{timestamp}_ep{episode}.pth"
                 backup_path = os.path.join(backup_dir, backup_filename)
-                
-                # Prepare checkpoint (same content as final save + metadata)
+
+                # Save checkpoint
                 checkpoint = {
-                    'policy_state_dict': ppo_agent.policy.state_dict(),
-                    'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
-                    'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+                    'actor_state_dict': agent.actor.state_dict(),
+                    'critic_state_dict': agent.critic.state_dict(),
+                    'critic_target_state_dict': agent.critic_target.state_dict(),
+                    'actor_optimizer': agent.actor_optimizer.state_dict(),
+                    'critic_optimizer': agent.critic_optimizer.state_dict(),
+                    'log_alpha': agent.log_alpha if agent.auto_entropy else None,
+                    'alpha_optimizer': agent.alpha_optimizer.state_dict() if agent.auto_entropy else None,
                     'obs_mean': norm.mean,
                     'obs_var': norm.var,
                     'obs_count': norm.n,
-                    'episode': i_episode,
+                    'episode': episode,
                     'timestep': total_timesteps,
-                    'timestamp': timestamp
                 }
-                
-                # Save to temporary file first, then rename (atomic operation)
+
                 temp_path = backup_path + ".tmp"
                 torch.save(checkpoint, temp_path)
                 os.replace(temp_path, backup_path)
-                
+
                 print(f"[BACKUP] Saved: {backup_filename}")
                 last_backup_time = current_time
-                
-                # Cleanup old backups (keep only most recent N)
-                if max_backups > 0:
+
+                # Cleanup old backups
+                if config.MAX_BACKUPS > 0:
                     backup_files = sorted(
-                        glob.glob(os.path.join(backup_dir, "backup_*.pth")),
+                        glob.glob(os.path.join(backup_dir, "sac_backup_*.pth")),
                         key=os.path.getmtime
                     )
-                    if len(backup_files) > max_backups:
-                        for old_file in backup_files[:-max_backups]:
-                            os.remove(old_file)
-                            print(f"[BACKUP] Removed old: {os.path.basename(old_file)}")
-                            
-            except Exception as e:
-                print(f"[BACKUP WARNING] Failed to create backup: {e}")
-                # Continue training even if backup fails
-        # =========================================================
+                    for old_file in backup_files[:-config.MAX_BACKUPS]:
+                        os.remove(old_file)
 
-    # Save final model
-    
+            except Exception as e:
+                print(f"[BACKUP WARNING] Failed: {e}")
+
+    # ========== Save Final Model ==========
+    final_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
     checkpoint = {
-        'policy_state_dict': ppo_agent.policy.state_dict(),
-        'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
-        'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+        'actor_state_dict': agent.actor.state_dict(),
+        'critic_state_dict': agent.critic.state_dict(),
+        'critic_target_state_dict': agent.critic_target.state_dict(),
+        'actor_optimizer': agent.actor_optimizer.state_dict(),
+        'critic_optimizer': agent.critic_optimizer.state_dict(),
+        'log_alpha': agent.log_alpha if agent.auto_entropy else None,
+        'alpha_optimizer': agent.alpha_optimizer.state_dict() if agent.auto_entropy else None,
         'obs_mean': norm.mean,
         'obs_var': norm.var,
-        'obs_count': norm.n, # Important if you want to RESUME training later
+        'obs_count': norm.n,
         'episode': config.MAX_EPISODES,
-        'timestep': total_timesteps
+        'timestep': total_timesteps,
     }
-
-    torch.save(checkpoint, final_model_path)
-    print("Saved model and normalization stats.")
-
+    torch.save(checkpoint, final_path)
+    print(f"Saved final model to {final_path}")
 
     env.close()
     writer.close()
