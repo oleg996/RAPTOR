@@ -2,7 +2,7 @@ extends HingeJoint3D
 
 @export var max_tor = 1;
 
-var pow = 0
+var pow = 1
 
 
 
@@ -22,8 +22,8 @@ func _process(delta: float) -> void:
 	
 	
 	var axis = second_obg.global_transform.basis.z
-	second_obg.apply_torque(axis  * pow * max_tor)
-	first_obg.apply_torque(axis * -1 * pow * max_tor)
+	second_obg.apply_torque(axis  * pow * max_tor * 0.5)
+	first_obg.apply_torque(axis * -1 * pow * max_tor * 0.5)
 	
 func get_angle():
 	var rot1 = first_obg.rotation.z

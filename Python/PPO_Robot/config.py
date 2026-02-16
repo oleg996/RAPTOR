@@ -2,36 +2,36 @@ import os
 
 
 class Config:
-    # Environment parameters
     ENV_NAME = "HalfCheetah-v5"
 
     # Training parameters
-    MAX_EPISODES = 40000
+    MAX_EPISODES = 20000
     MAX_TIMESTEPS = 2048
-    LOG_INTERVAL = 20
-    BATCH_SIZE = 256  # Smaller batches, more frequent updates
-    REWARD_SCALE = 1.0
+    LOG_INTERVAL = 10
+    BATCH_SIZE = 256
+    REWARD_SCALE = 1
+
+    NORM_WARM_UP = 1
 
     # SAC hyperparameters
     LEARNING_RATE_ACTOR = 3e-4
     LEARNING_RATE_CRITIC = 3e-4
-    LEARNING_RATE_ALPHA = 3e-4  # For automatic entropy tuning
-    GAMMA = 0.99
-    TAU = 0.005  # Soft target update coefficient
+    LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
+    GAMMA = 0.95 #maybe lower??
+    TAU = 0.005
 
     # Replay buffer
-    BUFFER_SIZE = 1_000_000
-    MIN_BUFFER_SIZE = 10000  # Start training after this many steps
+    BUFFER_SIZE = 1000000
+    MIN_BUFFER_SIZE = 10000
 
     # Updates per environment step
     GRADIENT_STEPS = 1
 
     # Entropy tuning
     AUTO_ENTROPY_TUNING = True
-    INIT_ALPHA = 0.2  # Initial entropy coefficient
+    INIT_ALPHA = 0.05
 
-    # Action bounds (for continuous action spaces)
-    ACTION_BOUND = 1.0  # Assumes normalized actions [-1, 1]
+    ACTION_BOUND = 1.0
 
     # Model parameters
     HIDDEN_UNITS = [256, 256]
@@ -39,7 +39,7 @@ class Config:
 
     # Save/Load paths
     MODEL_DIR = "models"
-    MODEL_NAME = "sac_latest.pth"
+    MODEL_NAME = "test.pth"
     TENSORBOARD_LOG_DIR = "runs"
     LOAD_MODEL = False
 

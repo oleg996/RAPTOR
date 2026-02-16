@@ -25,16 +25,15 @@ class Tpc_env():
 
         revard = recived[0]
 
-        done = recived[1] == -1
-
+        term = recived[1] == -1
 
         obs = recived[2:]
 
         self.time += 1
-        return numpy.array(obs),revard,done,False,None
+        return numpy.array(obs),revard,term,self.time > 500,None
 
     def reset (self):
-        data = [-1] + [0,0,0,0,0,0,0,0,0]
+        data = [-1] + ([0]*6)
 
         recived = comm.get_and_send_data(data,self.cl)
 

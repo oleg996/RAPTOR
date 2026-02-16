@@ -38,12 +38,13 @@ size = Vector3(0.1, 0.1, 0.1)
 size = Vector3(0.1, 0.1, 0.1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_6lewv"]
-size = Vector3(0.40867615, 0.1, 0.1)
+size = Vector3(0.70214844, 0.1, 0.1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_u64xo"]
 size = Vector3(0.7, 0.1, 0.1)
 
-[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_j8wvp"]
+[sub_resource type="BoxShape3D" id="BoxShape3D_u64xo"]
+size = Vector3(0.41210938, 0.1, 0.1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_tu234"]
 size = Vector3(0.4, 0.1, 0.1)
@@ -135,7 +136,7 @@ max_tor = 40
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024869919, 0.6542902, 0)
 rotation_order = 4
 collision_mask = 2
-mass = 4.0
+mass = 2.0
 inertia = Vector3(1, 1, 1)
 continuous_cd = true
 contact_monitor = true
@@ -154,7 +155,7 @@ mesh = SubResource("BoxMesh_j8wvp")
 [node name="bleg1" type="RigidBody3D" parent="dino" unique_id=77648865]
 transform = Transform3D(0.57620406, 0.8173058, 0, -0.81730586, 0.5762041, 0, 0, 0, 0.99999994, -0.18036994, 0.49948397, 0.14916861)
 collision_mask = 2
-mass = 4.0
+mass = 2.0
 inertia = Vector3(0.2, 0.2, 0.2)
 continuous_cd = true
 contact_monitor = true
@@ -162,12 +163,12 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/bleg1" unique_id=1388057315]
-transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.066649914, -0.0052291155, 0)
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 0.9999999, -0.066649914, -0.0052291006, 0.056246877)
 shape = SubResource("BoxShape3D_tvsrp")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="dino/bleg1" unique_id=1602344360]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+transform = Transform3D(1, 2.9802322e-08, 0, -2.9802322e-08, 1, 0, 0, 0, 0.9999999, -0.040542603, -0.002698183, 0.056246877)
 mesh = SubResource("BoxMesh_ih0mi")
 
 [node name="bleg1_bleg2" type="HingeJoint3D" parent="dino/bleg1" unique_id=377015928]
@@ -183,7 +184,6 @@ max_tor = 40
 [node name="bleg2" type="RigidBody3D" parent="dino" unique_id=341812014]
 transform = Transform3D(-0.84879625, 0.5287196, 0, -0.5287197, -0.84879637, 0, 0, 0, 0.9999999, -0.32456294, 0.28577995, 0.14916855)
 collision_mask = 2
-mass = 2.0
 inertia = Vector3(0.2, 0.2, 0.2)
 continuous_cd = true
 contact_monitor = true
@@ -191,12 +191,12 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/bleg2" unique_id=784385361]
-transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.03491208, -0.005229175, 0.056246936)
 shape = SubResource("BoxShape3D_tvsrp")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="dino/bleg2" unique_id=791291971]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.0026981235, 0.056246936)
 mesh = SubResource("BoxMesh_ih0mi")
 
 [node name="bleg2_bleg3" type="HingeJoint3D" parent="dino/bleg2" unique_id=10225329]
@@ -220,18 +220,18 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/bleg3" unique_id=2135118661]
-transform = Transform3D(-4.4703484e-08, -0.9999997, 0, 0.9999997, -4.4703484e-08, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+transform = Transform3D(-5.2154064e-08, -0.9999997, 0, 0.9999997, -5.2154064e-08, 0, 0, 0, 1, -0.03491211, -0.005229175, 0.056246936)
 shape = SubResource("CapsuleShape3D_ih0mi")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="dino/bleg3" unique_id=555080925]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+transform = Transform3D(1, -7.450581e-09, 0, 7.450581e-09, 1, 0, 0, 0, 1, -0.040542603, -0.0026981533, 0.056246936)
 mesh = SubResource("BoxMesh_ih0mi")
 
 [node name="fleg1" type="RigidBody3D" parent="dino" unique_id=2082140869]
 transform = Transform3D(0.57620406, 0.8173058, 0, -0.81730586, 0.5762041, 0, 0, 0, 0.99999994, -0.18036994, 0.49948397, -0.14899999)
 collision_mask = 2
-mass = 4.0
+mass = 2.0
 inertia = Vector3(0.2, 0.2, 0.2)
 continuous_cd = true
 contact_monitor = true
@@ -239,12 +239,12 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/fleg1" unique_id=145728732]
-transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.066649914, -0.0052291155, 0)
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 0.9999999, -0.066649914, -0.0052291006, -0.05825618)
 shape = SubResource("BoxShape3D_tvsrp")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="dino/fleg1" unique_id=775108370]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+transform = Transform3D(1, 2.9802322e-08, 0, -2.9802322e-08, 1, 0, 0, 0, 0.9999999, -0.040542603, -0.002698183, -0.05825618)
 mesh = SubResource("BoxMesh_ih0mi")
 
 [node name="fleg1_fleg2" type="HingeJoint3D" parent="dino/fleg1" unique_id=411716272]
@@ -260,7 +260,6 @@ max_tor = 40
 [node name="fleg2" type="RigidBody3D" parent="dino" unique_id=1088751326]
 transform = Transform3D(-0.8487962, 0.52871954, 0, -0.5287197, -0.84879637, 0, 0, 0, 0.9999998, -0.3245629, 0.28577995, -0.14899996)
 collision_mask = 2
-mass = 2.0
 inertia = Vector3(0.2, 0.2, 0.2)
 continuous_cd = true
 contact_monitor = true
@@ -268,12 +267,12 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/fleg2" unique_id=177891211]
-transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 0.99999976, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+transform = Transform3D(0.99999976, 2.9802322e-08, 0, -5.9604645e-08, 0.99999976, 0, 0, 0, 1, -0.03491208, -0.0052291155, -0.05825618)
 shape = SubResource("BoxShape3D_tvsrp")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="dino/fleg2" unique_id=6982035]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+transform = Transform3D(1, 2.9802322e-08, 0, -2.9802322e-08, 1, 0, 0, 0, 1, -0.040542573, -0.0026981235, -0.05825618)
 mesh = SubResource("BoxMesh_ih0mi")
 
 [node name="fleg2_fleg3" type="HingeJoint3D" parent="dino/fleg2" unique_id=136566196]
@@ -297,12 +296,12 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/fleg3" unique_id=1833681455]
-transform = Transform3D(-4.4703484e-08, -0.9999997, 0, 0.9999997, -4.4703484e-08, 0, 0, 0, 1, -0.03491211, -0.0052292347, 0)
+transform = Transform3D(-4.4703484e-08, -0.99999976, 0, 0.99999976, -4.4703484e-08, 0, 0, 0, 1, -0.03491211, -0.005229175, -0.05825618)
 shape = SubResource("CapsuleShape3D_ih0mi")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="dino/fleg3" unique_id=39029923]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040542603, -0.002698183, 0)
+transform = Transform3D(1.0000001, 0, 0, 0, 1.0000001, 0, 0, 0, 1, -0.040542603, -0.0026981533, -0.05825618)
 mesh = SubResource("BoxMesh_ih0mi")
 
 [node name="tail1" type="RigidBody3D" parent="dino" unique_id=908490538]
@@ -328,15 +327,15 @@ transform = Transform3D(1, 0, 0, 0, -4.3711385e-08, -0.9999999, 0, 1, -4.371139e
 node_a = NodePath("..")
 node_b = NodePath("../../tail2")
 angular_limit/enable = true
-angular_limit/upper = 0.0
-angular_limit/lower = 0.0
+angular_limit/upper = 0.5235988
+angular_limit/lower = -0.5235988
 script = ExtResource("2_fxs24")
 max_tor = 30
 
 [node name="tail2" type="RigidBody3D" parent="dino" unique_id=1559173687]
 transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.9999999, -0.6211315, 0.6361534, -0.0019176006)
 collision_mask = 2
-mass = 2.0
+mass = 3.0
 inertia = Vector3(0.2, 0.2, 0.2)
 continuous_cd = true
 contact_monitor = true
@@ -344,7 +343,7 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/tail2" unique_id=1100535999]
-transform = Transform3D(0.99999976, 2.9802322e-08, 0, -2.9802322e-08, 1, 0, 0, 0, 1, -0.3174895, 0, 0)
+transform = Transform3D(1, 2.980279e-08, 0, -2.980279e-08, 1, 0, 0, 0, 1, -0.30801576, 0, 0)
 shape = SubResource("BoxShape3D_6lewv")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
@@ -357,7 +356,6 @@ skeleton = NodePath("../../tail2")
 transform = Transform3D(-0.6484388, 0.76126665, 0, -0.7612667, -0.6484388, 0, 0, 0, 0.9999999, 0.33860034, 0.7959281, 0.00070410967)
 collision_mask = 2
 mass = 4.5
-physics_material_override = SubResource("PhysicsMaterial_j8wvp")
 inertia = Vector3(0.2, 0.2, 0.2)
 continuous_cd = true
 contact_monitor = true
@@ -365,8 +363,8 @@ max_contacts_reported = 1
 script = ExtResource("3_j8wvp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="dino/neck1" unique_id=1465127518]
-transform = Transform3D(1, 2.9802319e-08, 0, -2.9802305e-08, 1, 0, 0, 0, 1, -0.15660864, 0, 0)
-shape = SubResource("BoxShape3D_6lewv")
+transform = Transform3D(1, 2.9802322e-08, 0, -2.9802322e-08, 1, 0, 0, 0, 1, -0.1566087, -5.9604645e-08, 0)
+shape = SubResource("BoxShape3D_u64xo")
 debug_color = Color(0.9255163, 0.3568733, 0, 1)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="dino/neck1" unique_id=203276277]
@@ -375,6 +373,7 @@ mesh = SubResource("BoxMesh_tu234")
 skeleton = NodePath("../../tail2")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1714818286]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.056246877)
 material_override = SubResource("StandardMaterial3D_6lewv")
 mesh = SubResource("PlaneMesh_u64xo")
 

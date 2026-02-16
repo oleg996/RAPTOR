@@ -10,7 +10,7 @@ from sac_agent import SACAgent
 import inputNorm
 from torch.utils.tensorboard import SummaryWriter
 
-import tcp.Tcp_env
+import gymnasium as gym
 
 
 class RewardNormalizer:
@@ -43,10 +43,9 @@ def main():
     device = torch.device(config.DEVICE)
     print(f"Using device: {device}")
 
-    env = tcp.Tcp_env.Tpc_env()
-    env.connect()
-    state_dim = 26
-    action_dim = 6
+    env = gym.make(config.ENV_NAME)
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
 
 
 

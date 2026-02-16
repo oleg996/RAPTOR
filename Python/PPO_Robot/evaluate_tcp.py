@@ -15,8 +15,8 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     # Initialize environment
     env = tcp.Tcp_env.Tpc_env()
     env.connect()
-    state_dim = 40
-    action_dim = 9
+    state_dim = 26
+    action_dim = 6
 
     # Initialize SAC agent
     agent = SACAgent(state_dim, action_dim, config, device)
@@ -37,10 +37,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     agent.critic.load_state_dict(checkpoint['critic_state_dict'])
     agent.critic_target.load_state_dict(checkpoint['critic_target_state_dict'])
     
-    # Restore alpha if using automatic entropy tuning
-    if agent.auto_entropy and checkpoint.get('log_alpha') is not None:
-        agent.log_alpha = checkpoint['log_alpha']
-        agent.alpha = agent.log_alpha.exp().item()
+
 
     # Restore Normalizer Stats
     norm.mean = checkpoint['obs_mean']

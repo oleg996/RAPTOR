@@ -10,7 +10,7 @@ var velocity_div = 30
 var counter = 0
 
 
-var standard_FPS = 60
+var standard_FPS = 30
 
 var speed_Factor = 1
 
@@ -25,7 +25,7 @@ func _ready() -> void:
 	
 	parts = [$dino/body,$dino/bleg1,$dino/bleg2,$dino/bleg3,$dino/fleg1,$dino/fleg2,$dino/fleg3,$dino/tail1,$dino/tail2,$dino/neck1]
 	
-	print(perform_observarions())	
+	
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
@@ -152,15 +152,15 @@ func perform_observarions():
 	
 func calculate_revard():
 	
-	var pen = pow($dino/body_bleg1.pow ,2) + pow($dino/bleg1/bleg1_bleg2.pow ,2) + pow($dino/bleg2/bleg2_bleg3.pow ,2)
-	pen += 	pow($dino/body_fleg1.pow,2) + pow($dino/fleg1/fleg1_fleg2.pow,2) + pow($dino/fleg2/fleg2_fleg3.pow,2)
-	pen += 	pow($dino/body_tail1.pow,2) + pow($dino/tail1/tail1_tail2.pow,2) + pow($dino/body_neck1.pow,2)
+	var en_pen = pow($dino/body_bleg1.pow ,2) + pow($dino/bleg1/bleg1_bleg2.pow ,2) + pow($dino/bleg2/bleg2_bleg3.pow ,2)
+	en_pen += 	pow($dino/body_fleg1.pow,2) + pow($dino/fleg1/fleg1_fleg2.pow,2) + pow($dino/fleg2/fleg2_fleg3.pow,2)
+	en_pen += 	pow($dino/body_tail1.pow,2) + pow($dino/tail1/tail1_tail2.pow,2) + pow($dino/body_neck1.pow,2)
 	
-	var forv_r = -abs($dino/body.linear_velocity.x) - abs($dino/body.linear_velocity.z)
+	var mov = $dino/body.linear_velocity.x #+ abs($dino/body.linear_velocity.z)
 	
 	
 	
-	var rev = forv_r*0.5 - pen * 0.05 + 0.6
+	var rev = mov - en_pen * 0.05
 	return rev
 	
 func reset():
@@ -193,5 +193,6 @@ func FPS_TIMER() -> void:
 	
 func  _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.is_pressed():
-		for p in parts:
-			p.	apply_impulse(Vector3(randf_range(-1,1),randf_range(-1,1),randf_range(-1,1))*10)
+		reset()
+		print(perform_observarions())	
+		

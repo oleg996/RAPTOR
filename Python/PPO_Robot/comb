@@ -4,617 +4,642 @@ import os
 
 
 class Config:
-    # Environment parameters
-    ENV_NAME = "HalfCheetah-v5"  # Name of the OpenAI Gym environment to train on
+    ENV_NAME = "HalfCheetah-v5"
 
     # Training parameters
-    MAX_EPISODES = 40000  # Maximum number of training episodes
-    MAX_TIMESTEPS = 2048  # Maximum number of timesteps per episode
-    UPDATE_TIMESTEP = 8192  # Number of timesteps between policy updates
-    LOG_INTERVAL = 20  # Interval (in episodes) for logging training progress
-    BATCH_SIZE = 1024  # Batch size for PPO updates
-    REWARD_SCALE = 0.1  # Scaling factor for rewards (to normalize them)
+    MAX_EPISODES = 20000
+    MAX_TIMESTEPS = 2048
+    LOG_INTERVAL = 10
+    BATCH_SIZE = 256
+    REWARD_SCALE = 1
 
+    NORM_WARM_UP = 50
 
-    # PPO hyperparameters
-    ACTION_STD = 0.7  # Initial standard deviation for action distribution
-    ACTION_STD_MIN = 0.1  # Minimum standard deviation for action distribution (annealing)
-    LEARNING_RATE = 1e-4  # Learning rate for the optimizer
-    GAMMA = 0.99  # Discount factor for future rewards
-    GAE_LAMBDA = 0.95  # GAE (Generalized Advantage Estimation) lambda parameter
-    K_EPOCHS = 10  # Number of PPO epochs per update
-    EPS_CLIP = 0.2  # PPO clipping parameter for policy update
-    ENTROPY_PEN = 0.005  # Entropy coefficient for encouraging exploration
-    TARGET_KL = 0.03  # Target KL divergence for early stopping updates
-    VALUE_CLIP = 1.0
-    POLICY_CLIP = 1.0
+    # SAC hyperparameters
+    LEARNING_RATE_ACTOR = 1e-4
+    LEARNING_RATE_CRITIC = 1e-4
+    LEARNING_RATE_ALPHA = 3e-5  # ← Slower alpha learning prevents entropy collapse
+    GAMMA = 0.95 #maybe lower??
+    TAU = 0.005
 
+    # Replay buffer
+    BUFFER_SIZE = 1000000
+    MIN_BUFFER_SIZE = 10000
 
-    ENTROPY_PEN_START = 0.01  # Higher initial exploration
-    ENTROPY_PEN_END = 0.001   # Lower final
-    ENTROPY_ANNEAL_STEPS = 20000  # Episodes to decay over 
+    # Updates per environment step
+    GRADIENT_STEPS = 1
 
+    # Entropy tuning
+    AUTO_ENTROPY_TUNING = True
+    INIT_ALPHA = 0.05
 
+    ACTION_BOUND = 1.0
 
     # Model parameters
-    HIDDEN_UNITS = [256,256]  # Neural network architecture: two hidden layers with 256 units each
-    DEVICE = "cuda"  # Device to run training on ('cuda' for GPU, 'cpu' for CPU)
+    HIDDEN_UNITS = [256, 256]
+    DEVICE = "cuda"
 
     # Save/Load paths
-    MODEL_DIR = "models"  # Directory to save trained models
-    MODEL_NAME = "latest.pth"  # Filename for the saved model
-    TENSORBOARD_LOG_DIR = "runs"  # Directory for TensorBoard logs
-    LOAD_MODEL = False  # Whether to load a pre-trained model at the start
+    MODEL_DIR = "models"
+    MODEL_NAME = "sac_latest.pth"
+    TENSORBOARD_LOG_DIR = "runs"
+    LOAD_MODEL = False
 
-
-    BACKUP_DIR = "./models/backups"      # Separate directory for backups
-    BACKUP_INTERVAL = 3600               # Seconds (3600 = 1 hour)
-    MAX_BACKUPS = 5                      # Keep only last 5 backups (0 = unlimited)
+    BACKUP_DIR = "./models/backups"
+    BACKUP_INTERVAL = 3600
+    MAX_BACKUPS = 5
 
     def __init__(self):
-        # Create directories if they don't exist
         os.makedirs(self.MODEL_DIR, exist_ok=True)
-        os.makedirs(self.TENSORBOARD_LOG_DIR,exist_ok=True)
+        os.makedirs(self.TENSORBOARD_LOG_DIR, exist_ok=True)
         os.makedirs(self.BACKUP_DIR, exist_ok=True)
-
  models.py:
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributions import Normal
 import numpy as np
 
-class ActorCritic(nn.Module):
-    """
-    Combined Actor-Critic network for PPO.
+LOG_STD_MIN = -20
+LOG_STD_MAX = 2
 
-    Actor: Outputs mean of continuous action distribution
-    Critic: Outputs state value estimate
-    """
 
-    def __init__(self, state_dim, action_dim, action_std,action_std_min, hidden_units=[64, 32]):
-        """
-        Initialize the Actor-Critic network.
+class MLP(nn.Module):
+    """Shared MLP builder for all networks."""
 
-        Args:
-            state_dim (int): Dimension of state space
-            action_dim (int): Dimension of action space
-            action_std (float): Standard deviation for action distribution
-            hidden_units (list): List of hidden layer sizes
-        """
-        super(ActorCritic, self).__init__()
-        self.action_dim = action_dim
+    def __init__(self, input_dim, hidden_units, output_dim,
+                 output_activation=None, use_layernorm=False):
+        super(MLP, self).__init__()
 
-        # Build actor network
-        actor_layers = []
-        input_dim = state_dim
+        layers = []
+        prev_dim = input_dim
+
         for hidden_dim in hidden_units:
-            actor_layers.extend([
-                nn.Linear(input_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
-                nn.LeakyReLU() #other???
-            ])
-            input_dim = hidden_dim
-        actor_layers.append(nn.Linear(input_dim, action_dim))
-        actor_layers.append(nn.Tanh())  # Bound output for environments like BipedalWalker
-        self.actor = nn.Sequential(*actor_layers)
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            if use_layernorm:
+                layers.append(nn.LayerNorm(hidden_dim))
+            layers.append(nn.ReLU())
+            prev_dim = hidden_dim
 
-        # Build critic network
-        critic_layers = []
-        input_dim = state_dim
+        # Output layer
+        final_layer = nn.Linear(prev_dim, output_dim)
+        # Small init for output layer to start near zero
+        nn.init.uniform_(final_layer.weight, -3e-3, 3e-3)
+        nn.init.uniform_(final_layer.bias, -3e-3, 3e-3)
+        layers.append(final_layer)
+
+        if output_activation is not None:
+            layers.append(output_activation)
+
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class GaussianActor(nn.Module):
+    """
+    Stochastic actor using Gaussian distribution.
+    Outputs mean and log_std, uses reparameterization trick.
+    """
+
+    def __init__(self, state_dim, action_dim, hidden_units, action_bound=1.0):
+        super(GaussianActor, self).__init__()
+
+        self.action_bound = action_bound
+
+        # Shared trunk — full hidden layers
+        trunk_layers = []
+        prev_dim = state_dim
         for hidden_dim in hidden_units:
-            critic_layers.extend([
-                nn.Linear(input_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim),
-                nn.LeakyReLU()
+            trunk_layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.ReLU(),
             ])
-            input_dim = hidden_dim
-        critic_layers.append(nn.Linear(input_dim, 1))
-        self.critic = nn.Sequential(*critic_layers)
+            prev_dim = hidden_dim
+        self.trunk = nn.Sequential(*trunk_layers)
 
-        self.log_std = nn.Parameter(torch.ones(action_dim) * np.log(action_std),requires_grad=True)
-        self.action_std_min = action_std_min
+        # Separate heads for mean and log_std
+        self.mean_head = nn.Linear(hidden_units[-1], action_dim)
+        self.log_std_head = nn.Linear(hidden_units[-1], action_dim)
 
-        def init_weights(m):
-            if isinstance(m, nn.Linear):
-                nn.init.orthogonal_(m.weight, gain=np.sqrt(2))
-                nn.init.constant_(m.bias, 0)
+        # Initialize output layers with small weights
+        nn.init.uniform_(self.mean_head.weight, -3e-3, 3e-3)
+        nn.init.uniform_(self.mean_head.bias, -3e-3, 3e-3)
+        nn.init.uniform_(self.log_std_head.weight, -3e-3, 3e-3)
+        nn.init.uniform_(self.log_std_head.bias, -3e-3, 3e-3)
 
-        self.actor.apply(init_weights)
-        self.critic.apply(init_weights)
+    def forward(self, state):
+        """Get action distribution parameters."""
+        features = self.trunk(state)
+        mean = self.mean_head(features)
+        log_std = self.log_std_head(features)
+        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        return mean, log_std
 
-        # Special init for the output layers
-        # Actor output (gain=0.01 makes initial policy near-random/determistic, helps exploration)
-        nn.init.orthogonal_(self.actor[-2].weight, gain=0.01) 
-        # Critic output (gain=1.0)
-        nn.init.orthogonal_(self.critic[-1].weight, gain=1.0)
+    def sample(self, state):
+        mean, log_std = self.forward(state)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        x_t = normal.rsample()
+        action = torch.tanh(x_t) * self.action_bound
+        
+        log_prob = normal.log_prob(x_t).sum(-1, keepdim=True)  # Sum over action dims
+        # More numerically stable Jacobian correction
+        log_prob -= (2 * (np.log(2) - x_t - F.softplus(-2 * x_t))).sum(-1, keepdim=True)
+        
+        return action, log_prob
 
-    def forward(self):
-        """Not implemented as we use separate methods for actor and critic."""
-        raise NotImplementedError
+    def get_action(self, state, deterministic=False):
+        """Get action for environment interaction."""
+        mean, log_std = self.forward(state)
 
-    def act(self, state, device):
-        """
-        Select action given state.
+        if deterministic:
+            return torch.tanh(mean) * self.action_bound
+        else:
+            std = log_std.exp()
+            normal = Normal(mean, std)
+            x_t = normal.rsample()
+            return torch.tanh(x_t) * self.action_bound
 
-        Args:
-            state (torch.Tensor): Current state
-            device (torch.device): Device to run on
 
-        Returns:
-            tuple: (action, action_log_prob)
-        """
-        action_mean = self.actor(state)
-        action_std = torch.exp(self.log_std).clamp(min = self.action_std_min)
-        dist = Normal(action_mean, action_std)
+class QNetwork(nn.Module):
+    """
+    Q-network for SAC.
+    """
 
-        # Sample action
-        action = dist.sample()
+    def __init__(self, state_dim, action_dim, hidden_units):
+        super(QNetwork, self).__init__()
 
-        # Calculate log probability
-        action_logprob = dist.log_prob(action).sum(dim=-1)
+        self.q0 = MLP(state_dim + action_dim, hidden_units, 1)
+    
 
-        return action.detach(), action_logprob.detach()
+    def forward(self, state, action):
+        sa = torch.cat([state, action], dim=-1)
+        return self.q0(sa)
 
-    def evaluate(self, state, action, device):
-        """
-        Evaluate state-action pairs.
 
-        Args:
-            state (torch.Tensor): Batch of states
-            action (torch.Tensor): Batch of actions
-            device (torch.device): Device to run on
+class TwinQNetwork(nn.Module):
+    """
+    Twin Q-network for SAC.
+    """
 
-        Returns:
-            tuple: (action_logprobs, state_values, distribution_entropy)
-        """
-        action_mean = self.actor(state)
-        action_std = torch.exp(self.log_std).clamp(min = self.action_std_min)
-        dist = Normal(action_mean, action_std)
+    def __init__(self, state_dim, action_dim, hidden_units):
+        super(TwinQNetwork, self).__init__()
 
-        # Calculate log probabilities and entropy
-        action_logprobs = dist.log_prob(action).sum(dim=-1)
-        dist_entropy = dist.entropy().sum(dim=-1)
+        self.q1 = QNetwork(state_dim=state_dim,action_dim=action_dim,hidden_units=hidden_units)
 
-        # Get state values
-        state_values = self.critic(state)
+        self.q2 = QNetwork(state_dim=state_dim,action_dim=action_dim,hidden_units=hidden_units)
+    
 
-        return action_logprobs, torch.squeeze(state_values), dist_entropy
-
- ppo_agent.py:
+    def forward(self, state, action):
+        return self.q1(state,action) ,self.q2(state,action) 
+ sac_agent.py:
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
-import torch.nn as nn
 import numpy as np
-from models import ActorCritic
-from memory import Memory
+from copy import deepcopy
+
+from models import GaussianActor, QNetwork,TwinQNetwork
+from replay_buffer import ReplayBuffer
+
+from untils import update_params
 
 
-class PPOAgent:
+class SACAgent:
     """
-    Proximal Policy Optimization agent.
-    Implements the PPO algorithm with clipped objective.
+    Soft Actor-Critic agent.
+    Off-policy maximum entropy RL algorithm.
     """
 
     def __init__(self, state_dim, action_dim, config, device):
-        """
-        Initialize PPO agent.
-
-        Args:
-            state_dim (int): Dimension of state space
-            action_dim (int): Dimension of action space
-            config (Config): Configuration object
-            device (torch.device): Device to run computations on
-        """
         self.device = device
         self.config = config
+        self.action_dim = action_dim
 
-        # Initialize networks
-        self.policy = ActorCritic(
-            state_dim, action_dim, config.ACTION_STD,config.ACTION_STD_MIN, config.HIDDEN_UNITS
+        # Actor network
+        self.actor = GaussianActor(
+            state_dim, action_dim, config.HIDDEN_UNITS, config.ACTION_BOUND
         ).to(device)
 
-        self.policy_old = ActorCritic(
-            state_dim, action_dim, config.ACTION_STD,config.ACTION_STD_MIN, config.HIDDEN_UNITS
-        ).to(device)
-        self.policy_old.load_state_dict(self.policy.state_dict())
+        # Critic networks (two Q-networks)
+        self.critic = TwinQNetwork(state_dim, action_dim, config.HIDDEN_UNITS).to(device)
 
-        # --- FIX: SEPARATE OPTIMIZERS ---
-        # Actor parameters: The actor sequential net + log_std
-        actor_params = list(self.policy.actor.parameters()) + [self.policy.log_std]
-        self.optimizer_actor = optim.Adam(actor_params, lr=config.LEARNING_RATE, eps=1e-5)
-        
-        # Critic parameters
-        self.optimizer_critic = optim.Adam(self.policy.critic.parameters(), lr=config.LEARNING_RATE, eps=1e-5)
+        # Target critic (for stable Q-value estimation)
+        self.critic_target = deepcopy(self.critic)
 
-        # Loss function
-        self.mse_loss = nn.MSELoss()
+        # Freeze target network (no gradient updates)
+        for param in self.critic_target.parameters():
+            param.requires_grad = False
 
-    def select_action(self, state, memory):
-        """
-        Select action using old policy and store in memory.
+        # Optimizers
+        self.actor_optimizer = optim.Adam(
+            self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR
+        )
+        self.q1_optimizer = optim.Adam(
+            self.critic.q1.parameters(), lr=config.LEARNING_RATE_CRITIC
+        )
 
-        Args:
-            state (np.array): Current state
-            memory (Memory): Memory buffer to store transition
+        self.q2_optimizer = optim.Adam(
+            self.critic.q2.parameters(), lr=config.LEARNING_RATE_CRITIC
+        )
 
-        Returns:
-            np.array: Selected action
-        """
-        state = torch.FloatTensor(state).to(self.device)
+        self.target_entropy = -action_dim  # -9 is fine for 9 dims
+        # use zero
+        self.log_alpha = torch.tensor(
+            [0.0], requires_grad=True, device=device
+        )
+        self.alpha_optimizer = optim.Adam(
+            [self.log_alpha], lr=config.LEARNING_RATE_ALPHA
+        )
+
+        # Replay buffer
+        self.replay_buffer = ReplayBuffer(
+            state_dim, action_dim, config.BUFFER_SIZE, device
+        )
+
+    def select_action(self, state, deterministic=False):
+        """Select action for environment interaction."""
+        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            action, action_logprob = self.policy_old.act(state, self.device)
-
-        # Store transition
-        memory.states.append(state)
-        memory.actions.append(action)
-        memory.logprobs.append(action_logprob)
+            action = self.actor.get_action(state, deterministic)
 
         return action.cpu().numpy().flatten()
 
-    def update(self, memory, next_state_value=0):
-        old_states, old_actions, old_logprobs = memory.get_tensors(self.device)
-        old_rewards = torch.tensor(memory.rewards, dtype=torch.float32, device=self.device)
-        old_is_terminals = torch.tensor(memory.is_terminals, dtype=torch.float32, device=self.device)
+    def store_transition(self, state, action, reward, next_state, done):
+        """Store transition in replay buffer."""
+        self.replay_buffer.add(state, action, reward, next_state, done)
 
+    def update(self):
+        """
+        Perform one gradient step.
+        Returns dict with losses for logging.
+        """
+        if len(self.replay_buffer) < self.config.MIN_BUFFER_SIZE:
+            return None
+
+        # Sample batch
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(
+            self.config.BATCH_SIZE
+        )
+
+    
+
+        # ============ Critic Update ============
         with torch.no_grad():
-            _, state_values_old, _ = self.policy_old.evaluate(old_states, old_actions, self.device)
-            state_values_old = state_values_old.flatten()
-
-            advantages = torch.zeros_like(old_rewards)
-            last_gae = 0.0
-            last_value = next_state_value
-
-            for t in reversed(range(len(old_rewards))):
-                mask = 1.0 - old_is_terminals[t]
-                delta = old_rewards[t] + self.config.GAMMA * last_value * mask - state_values_old[t]
-                last_gae = delta + self.config.GAMMA * self.config.GAE_LAMBDA * last_gae * mask
-                advantages[t] = last_gae
-                last_value = state_values_old[t]
-
-            returns = advantages + state_values_old
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
-
-        returns = returns.detach()
-        advantages = advantages.detach()
-
-        batch_size = self.config.BATCH_SIZE
-        dataset_size = len(old_states)
-
-        running_loss = 0
-        running_policy_loss = 0
-        running_value_loss = 0
-        running_entropy = 0
-        update_count = 0
-
-        for e in range(self.config.K_EPOCHS):
-            indices = np.arange(dataset_size)
-            np.random.shuffle(indices)
-
-            for start_index in range(0, dataset_size, batch_size):
-                end_index = start_index + batch_size
-                batch_indices = indices[start_index:end_index]
-
-                # Get batch data
-                mb_states = old_states[batch_indices]
-                mb_actions = old_actions[batch_indices]
-                mb_logprobs = old_logprobs[batch_indices]
-                mb_advantages = advantages[batch_indices]
-                mb_returns = returns[batch_indices]
-                mb_old_values = state_values_old[batch_indices]
-
-                # Evaluate
-                logprobs, state_values, dist_entropy = self.policy.evaluate(
-                    mb_states, mb_actions, self.device
-                )
-                state_values = torch.squeeze(state_values)
-
-                # --- ACTOR UPDATE ---
-                ratios = torch.exp(logprobs - mb_logprobs)
-                surr1 = ratios * mb_advantages
-                surr2 = torch.clamp(ratios, 1 - self.config.EPS_CLIP, 1 + self.config.EPS_CLIP) * mb_advantages
-                
-                # Entropy allows exploration
-                policy_loss = -torch.min(surr1, surr2).mean() - self.config.ENTROPY_PEN * dist_entropy.mean()
-
-                self.optimizer_actor.zero_grad()
-                policy_loss.backward()
-                # Clip actor gradients only
-                actor_params_for_clip = list(self.policy.actor.parameters()) + [self.policy.log_std]
-                torch.nn.utils.clip_grad_norm_(actor_params_for_clip, self.config.POLICY_CLIP)
-                self.optimizer_actor.step()
-
-                
-
-                # --- CRITIC UPDATE ---
-                value_pred_clipped = mb_old_values + torch.clamp(
-                    state_values - mb_old_values, 
-                    -self.config.VALUE_CLIP, 
-                    self.config.VALUE_CLIP
-                )
-                loss_v_unclipped = (state_values - mb_returns) ** 2
-                loss_v_clipped = (value_pred_clipped - mb_returns) ** 2
-                
-                # Critic loss typically has a 0.5 coefficient
-                value_loss = 0.5 * torch.max(loss_v_unclipped, loss_v_clipped).mean()
-
-                self.optimizer_critic.zero_grad()
-                value_loss.backward()
-                # Clip critic gradients only
-                torch.nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.config.POLICY_CLIP)
-                self.optimizer_critic.step()
-
-                running_policy_loss += policy_loss.item()
-                running_value_loss += value_loss.item()
-                running_entropy += dist_entropy.mean().item()
-                running_loss += (policy_loss.item() + value_loss.item())
-                update_count += 1
+            next_actions, next_log_probs = self.actor.sample(next_states)
+            next_q1, next_q2 = self.critic_target(next_states, next_actions)
+            next_q = torch.min(next_q1, next_q2) - self.log_alpha.exp() * next_log_probs
+            target_q = rewards + (1 - dones) * self.config.GAMMA * (
+                next_q
+            )
             
-            # KL Early stopping (Same as before)
-            with torch.no_grad():
-                new_logprobs, _, _ = self.policy.evaluate(old_states, old_actions, self.device)
-                log_ratio = new_logprobs - old_logprobs
-                approx_kl = (torch.exp(log_ratio) - 1 - log_ratio).mean().item()
-                
-            if approx_kl > self.config.TARGET_KL :
-                print(f"Early stopping at epoch {e} due to KL: {approx_kl:.4f}")
-                break
 
-        self.policy_old.load_state_dict(self.policy.state_dict())
+        current_q1, current_q2 = self.critic(states, actions)
 
-        
+        # Use MSE loss instead of Huber for better gradient signal
+        q1_loss = F.mse_loss(current_q1, target_q) 
+        q2_loss = F.mse_loss(current_q2, target_q)
+
+        update_params(self.q1_optimizer,self.critic.q1,q1_loss,1)
+
+        update_params(self.q2_optimizer,self.critic.q2,q2_loss,1)
+
+
+        # ============ Actor Update ============
+        # Freeze Q-networks to save computation
+        for param in self.critic.parameters():
+            param.requires_grad = False
+
+        # Sample actions from current policy
+        new_actions, log_probs = self.actor.sample(states)
+
+        # Q-value of new actions
+        q1, q2 = self.critic(states, new_actions)
+        q_value = torch.min(q1, q2)
+
+        # Actor loss: maximize Q - α log π
+        #actor_loss = (self.alpha * log_probs - q_value).mean()
+
+        actor_loss = -(q_value - self.log_alpha.exp().detach() * log_probs).mean()
+
+
+        update_params(self.actor_optimizer,self.actor,actor_loss,1)
+
+        # Unfreeze Q-networks
+        for param in self.critic.parameters():
+            param.requires_grad = True
+
+
+
+        alpha_loss = (
+            self.log_alpha.exp() * (-log_probs-self.target_entropy).detach()
+        ).mean()
+
+        update_params(self.alpha_optimizer,None,alpha_loss)
+
+
+        # ============ Soft Target Update ============
+        self._soft_update()
 
         return {
-            "loss/total": running_loss / update_count,
-            "loss/policy": running_policy_loss / update_count,
-            "loss/value": running_value_loss / update_count,
-            "loss/entropy": running_entropy / update_count
+            "loss/Q1": q1_loss.item(),
+            "loss/Q2": q2_loss.item(),
+            "loss/actor": actor_loss.item(),
+            "loss/alpha": alpha_loss.item(),
+            "alpha": self.log_alpha.exp().item(),
+            "q_value": q_value.mean().item(),
+            "log_prob": log_probs.mean().item(),
         }
 
+    def _soft_update(self):
+        """Soft update of target network: θ' = τθ + (1-τ)θ'"""
+        tau = self.config.TAU
+        for param, target_param in zip(
+            self.critic.parameters(), self.critic_target.parameters()
+        ):
+            target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+
+    def save(self, path):
+        """Save model checkpoint."""
+        torch.save({
+            'actor_state_dict': self.actor.state_dict(),
+            'critic_state_dict': self.critic.state_dict(),
+            'critic_target_state_dict': self.critic_target.state_dict(),
+            'actor_optimizer': self.actor_optimizer.state_dict(),
+            'q1_optimizer': self.q1_optimizer.state_dict(),
+            'q2_optimizer': self.q2_optimizer.state_dict(),
+            'log_alpha': self.log_alpha,
+            'alpha_optimizer': self.alpha_optimizer.state_dict()
+        }, path)
+
+    def load(self, path):
+        """Load model checkpoint."""
+        checkpoint = torch.load(path, map_location=self.device,weights_only=False)
+
+        self.actor.load_state_dict(checkpoint['actor_state_dict'])
+        self.critic.load_state_dict(checkpoint['critic_state_dict'])
+        self.critic_target.load_state_dict(checkpoint['critic_target_state_dict'])
+        self.actor_optimizer.load_state_dict(checkpoint['actor_optimizer'])
+        self.q1_optimizer.load_state_dict(checkpoint['q1_optimizer'])
+        self.q2_optimizer.load_state_dict(checkpoint['q2_optimizer'])
 
 
+        self.log_alpha = checkpoint['log_alpha']
+        self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
  train.py:
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
-from config import Config
-from ppo_agent import PPOAgent
-from memory import Memory
 import os
-import tcp.Tcp_env
+import time
+import datetime
+import glob
+
+from config import Config
+from sac_agent import SACAgent
 import inputNorm
 from torch.utils.tensorboard import SummaryWriter
-import time  # ADDED
-import datetime  # ADDED
-import glob  # ADDED (for cleanup)
+
+import tcp.Tcp_env
+
+
+class RewardNormalizer:
+    """Normalize rewards using running statistics."""
+    def __init__(self):
+        self.mean = 0.0
+        self.var = 1.0
+        self.count = 1e-4
+
+    def update(self, reward):
+        batch_mean = reward
+        batch_var = 0.0
+        batch_count = 1
+
+        delta = batch_mean - self.mean
+        total_count = self.count + batch_count
+        self.mean += delta * batch_count / total_count
+        self.var = (
+            (self.var * self.count + batch_var * batch_count) / total_count
+            + delta**2 * self.count * batch_count / total_count**2
+        )
+        self.count = total_count
+
+    def normalize(self, reward):
+        return reward / (np.sqrt(self.var) + 1e-8) 
+
 
 def main():
-    # Configuration
     config = Config()
     device = torch.device(config.DEVICE)
     print(f"Using device: {device}")
 
-    # Initialize environment
     env = tcp.Tcp_env.Tpc_env()
     env.connect()
-    state_dim = 40
-    action_dim = 9
+    state_dim = 26
+    action_dim = 6
 
-    # Initialize agent and memory
-    ppo_agent = PPOAgent(state_dim, action_dim, config, device)
-    memory = Memory()
+    agent = SACAgent(state_dim, action_dim, config, device)
 
-    # Training metrics
-    avg_rewards = []
-    avg_lengths = []
-    timestep = 0
+    # State normalization
+    norm = inputNorm.RunningMeanStd(state_dim)
+
+    # Reward normalization — critical for SAC!
+    reward_norm = RewardNormalizer()
 
     writer = SummaryWriter(log_dir=config.TENSORBOARD_LOG_DIR)
 
+    episode_rewards = []
+    episode_lengths = []
     total_timesteps = 0
 
-    norm = inputNorm.RunningMeanStd(state_dim)
-    
-    # ==================== BACKUP SETUP ====================
-    # Create backup directory (can also add to your Config class)
-    backup_dir = getattr(config, 'BACKUP_DIR', os.path.join(config.MODEL_DIR, 'backups'))
+    backup_dir = config.BACKUP_DIR
     os.makedirs(backup_dir, exist_ok=True)
-    
-    # Backup configuration
-    backup_interval = getattr(config, 'BACKUP_INTERVAL', 3600)  # 1 hour = 3600 seconds
-    max_backups = getattr(config, 'MAX_BACKUPS', 5)  # Keep only last 5 backups
     last_backup_time = time.time()
-    
-    print(f"Backups enabled: every {backup_interval/3600:.1f}h to '{backup_dir}'")
-    # ======================================================
 
-    final_model_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
     if config.LOAD_MODEL:
-        print(f"loading model")
+        checkpoint_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
+        if os.path.exists(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path, map_location=device,weights_only=False)
+            agent.load(checkpoint_path)
+            if 'obs_mean' in checkpoint:
+                norm.mean = checkpoint['obs_mean']
+                norm.var = checkpoint['obs_var']
+                norm.n = checkpoint['obs_count']
+            print("Model loaded successfully.")
+    else:
+        print(f"Warming up the normalizer for {config.NORM_WARM_UP}")
 
-        # 3. Load the checkpoint
-        checkpoint = torch.load(final_model_path, map_location=device,weights_only=False)
+        rewards = []
+        for episode in range(1, config.NORM_WARM_UP + 1):
+            state, _ = env.reset()
+            for t in range(config.MAX_TIMESTEPS):
+                norm.update(np.array([state]))
+                state_norm = norm.normalize(state)
+                state_norm = np.clip(state_norm, -5.0, 5.0)
 
-        # 4. Restore Model
-        ppo_agent.policy.load_state_dict(checkpoint['policy_state_dict'])
-        ppo_agent.policy_old.load_state_dict(checkpoint['policy_state_dict'])
-        #ppo_agent.optimizer_actor.load_state_dict(checkpoint['optimizer_actor_state_dict'])
-        #ppo_agent.optimizer_critic.load_state_dict(checkpoint['optimizer_critic_state_dict'])
+                action = np.random.uniform(-1, 1, action_dim)
 
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                done = terminated or truncated
 
-        # 5. Restore Normalizer Stats
-        norm.mean = checkpoint['obs_mean']
-        norm.var = checkpoint['obs_var']
-        norm.n = checkpoint['obs_count'] # Only needed if resuming training
+                rewards.append(reward)
 
+                if done:
+                        break
+                state = next_state
 
-        new_log_std = torch.ones(action_dim) * np.log(config.ACTION_STD)
-        
-        # # We must update both policy and policy_old
-        # with torch.no_grad():
-        #     ppo_agent.policy.log_std.copy_(new_log_std)
-        #     ppo_agent.policy_old.log_std.copy_(new_log_std)
-            
-        # print(f"Exploration noise reset to std={config.ACTION_STD}")
+        print(f"Reward range: [{min(rewards):.2f}, {max(rewards):.2f}]")
+        print(f"Mean: {np.mean(rewards):.2f}, Std: {np.std(rewards):.2f}")
 
 
-
-        print("Model and Stats loaded successfully.")
-
-
-
-    print(f"Starting training on {config.ENV_NAME}")
+    print(f"Starting SAC training")
     print(f"State dim: {state_dim}, Action dim: {action_dim}")
+    print(f"Buffer will start training after {config.MIN_BUFFER_SIZE} steps")
 
-    # Training loop
-    for i_episode in range(1, config.MAX_EPISODES + 1):
+    for episode in range(1, config.MAX_EPISODES + 1):
         state, _ = env.reset()
         episode_reward = 0
         episode_length = 0
 
-
         for t in range(config.MAX_TIMESTEPS):
-            timestep += 1
             total_timesteps += 1
-            
-            # 1. Normalize State
-            norm.update(np.array([state])) 
-            state = norm.normalize(state)
-            state = np.clip(state, -10.0, 10.0)
 
-            # 2. Select Action
-            action = ppo_agent.select_action(state, memory)
+            # Normalize state
+            norm.update(np.array([state]))
+            state_norm = norm.normalize(state)
+            state_norm = np.clip(state_norm, -5.0, 5.0)  # tighter clip
 
-            # 3. Step
-            next_state_raw, reward, terminated, truncated, _ = env.step(action)
+            # Select action
+            if len(agent.replay_buffer) < config.MIN_BUFFER_SIZE:
+                action = np.random.uniform(-1, 1, action_dim)
+            else:
+                action = agent.select_action(state_norm, deterministic=False)
+
+            next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
 
-            # Scaling reward is good
-            reward = reward * config.REWARD_SCALE
-
-            # Store transition
-            memory.rewards.append(reward)
-            memory.is_terminals.append(terminated)
-
+            # Track raw reward for logging
             episode_reward += reward
+
+            # Normalize reward for training
+            #reward_norm.update(reward)
+            #reward_normalized = reward_norm.normalize(reward)
+
+            #print(f"r:{reward}| rn:{reward_normalized}")
+
+
+            next_state_norm = norm.normalize(next_state)
+            next_state_norm = np.clip(next_state_norm, -5.0, 5.0)
+
+            # Store with normalized reward
+            agent.store_transition(
+                state_norm, action, reward * config.REWARD_SCALE,
+                next_state_norm, float(terminated)
+            )
+
             episode_length += 1
 
-            # 4. Update Step
-            if timestep >= config.UPDATE_TIMESTEP:
-                # Check if last transition was a true termination
-                if memory.is_terminals[-1]:
-                    next_value = 0.0  # Don't bootstrap from reset state
-                else:
-                    # Only calculate value if not terminated (truncated or mid-episode)
-                    next_state_norm = norm.normalize(next_state_raw)
-                    next_state_norm = np.clip(next_state_norm, -10.0, 10.0)
-                    next_state_tensor = torch.FloatTensor(next_state_norm).to(device).unsqueeze(0)
-                    with torch.no_grad():
-                        _, next_val, _ = ppo_agent.policy_old.evaluate(
-                            next_state_tensor, 
-                            torch.zeros(1, action_dim).to(device),
-                            device
-                        )
-                        next_value = next_val.item()
-                
-                update_metrics = ppo_agent.update(memory, next_value)
-                for key, value in update_metrics.items():
-                    writer.add_scalar(key, value, total_timesteps)
+            if len(agent.replay_buffer) >= config.MIN_BUFFER_SIZE:
+                for _ in range(config.GRADIENT_STEPS):
+                    metrics = agent.update()
 
-                memory.clear_memory()
-                timestep = 0
+                    if metrics and total_timesteps % 1000 == 0:
+                        for key, value in metrics.items():
+                            writer.add_scalar(key, value, total_timesteps)
 
             if done:
                 break
-                
-            # Update state for next iteration
-            state = next_state_raw
 
+            state = next_state
 
-        avg_rewards.append(episode_reward)
-        avg_lengths.append(episode_length)
+        episode_rewards.append(episode_reward)
+        episode_lengths.append(episode_length)
 
+        # Per-episode logging
+        writer.add_scalar("reward/raw_episode_reward", episode_reward, episode)
 
+        if episode % config.LOG_INTERVAL == 0:
+            avg_reward = np.mean(episode_rewards[-config.LOG_INTERVAL:])
+            max_reward = np.max(episode_rewards[-config.LOG_INTERVAL:])
+            min_reward = np.min(episode_rewards[-config.LOG_INTERVAL:])
+            avg_length = int(np.mean(episode_lengths[-config.LOG_INTERVAL:]))
 
+            print(
+                f"Episode {episode:5d} | "
+                f"Avg R: {avg_reward:8.2f} | "
+                f"Min/Max R: {min_reward:.1f}/{max_reward:.1f} | "
+                f"Len: {avg_length:4d} | "
+                f"Buf: {len(agent.replay_buffer):7d} | "
+                f"α: {agent.log_alpha.exp().item():.4f} | "
+                f"Steps: {total_timesteps}"
+            )
 
-        # Print progress
-        if i_episode % config.LOG_INTERVAL == 0:
-            avg_reward = np.mean(avg_rewards[-config.LOG_INTERVAL:])
-            avg_length = int(np.mean(avg_lengths[-config.LOG_INTERVAL:]))
-            print(f'Episode {i_episode:5d} | '
-                  f'Avg Reward: {avg_reward:8.2f} | '
-                  f'Avg Length: {avg_length:4d} | '
-                  f'Last Reward: {episode_reward:8.2f}')
-            writer.add_scalar("reward/episode_reward", avg_reward, i_episode)
-            writer.add_scalar("reward/episode_length", avg_length, i_episode)
-        
-        # ==================== PERIODIC BACKUP ====================
+            writer.add_scalar("reward/avg_reward", avg_reward, episode)
+            writer.add_scalar("reward/max_reward", max_reward, episode)
+            writer.add_scalar("reward/episode_length", avg_length, episode)
+
+        # Periodic backup (unchanged)
         current_time = time.time()
-        if current_time - last_backup_time >= backup_interval:
+        if current_time - last_backup_time >= config.BACKUP_INTERVAL:
             try:
-                # Create timestamped filename
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_filename = f"backup_{timestamp}_ep{i_episode}_step{total_timesteps}.pth"
+                backup_filename = f"sac_backup_{timestamp}_ep{episode}.pth"
                 backup_path = os.path.join(backup_dir, backup_filename)
-                
-                # Prepare checkpoint (same content as final save + metadata)
+
                 checkpoint = {
-                    'policy_state_dict': ppo_agent.policy.state_dict(),
-                    'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
-                    'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+                    'actor_state_dict': agent.actor.state_dict(),
+                    'critic_state_dict': agent.critic.state_dict(),
+                    'critic_target_state_dict': agent.critic_target.state_dict(),
+                    'actor_optimizer': agent.actor_optimizer.state_dict(),
+                    'q1_optimizer': agent.q1_optimizer.state_dict(),
+                    'q2_optimizer': agent.q2_optimizer.state_dict(),
+                    'log_alpha': agent.log_alpha,
+                    'alpha_optimizer': agent.alpha_optimizer.state_dict(),
                     'obs_mean': norm.mean,
                     'obs_var': norm.var,
                     'obs_count': norm.n,
-                    'episode': i_episode,
+                    'episode': episode,
                     'timestep': total_timesteps,
-                    'timestamp': timestamp
                 }
-                
-                # Save to temporary file first, then rename (atomic operation)
+
                 temp_path = backup_path + ".tmp"
                 torch.save(checkpoint, temp_path)
                 os.replace(temp_path, backup_path)
-                
                 print(f"[BACKUP] Saved: {backup_filename}")
                 last_backup_time = current_time
-                
-                # Cleanup old backups (keep only most recent N)
-                if max_backups > 0:
+
+                if config.MAX_BACKUPS > 0:
                     backup_files = sorted(
-                        glob.glob(os.path.join(backup_dir, "backup_*.pth")),
+                        glob.glob(os.path.join(backup_dir, "sac_backup_*.pth")),
                         key=os.path.getmtime
                     )
-                    if len(backup_files) > max_backups:
-                        for old_file in backup_files[:-max_backups]:
-                            os.remove(old_file)
-                            print(f"[BACKUP] Removed old: {os.path.basename(old_file)}")
-                            
-            except Exception as e:
-                print(f"[BACKUP WARNING] Failed to create backup: {e}")
-                # Continue training even if backup fails
-        # =========================================================
+                    for old_file in backup_files[:-config.MAX_BACKUPS]:
+                        os.remove(old_file)
 
-    # Save final model
-    
+            except Exception as e:
+                print(f"[BACKUP WARNING] Failed: {e}")
+
+    final_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
     checkpoint = {
-        'policy_state_dict': ppo_agent.policy.state_dict(),
-        'optimizer_actor_state_dict': ppo_agent.optimizer_actor.state_dict(),
-        'optimizer_critic_state_dict': ppo_agent.optimizer_critic.state_dict(),
+        'actor_state_dict': agent.actor.state_dict(),
+        'critic_state_dict': agent.critic.state_dict(),
+        'critic_target_state_dict': agent.critic_target.state_dict(),
+        'actor_optimizer': agent.actor_optimizer.state_dict(),
+        'q1_optimizer': agent.q1_optimizer.state_dict(),
+        'q2_optimizer': agent.q2_optimizer.state_dict(),
+        'log_alpha': agent.log_alpha,
+        'alpha_optimizer': agent.alpha_optimizer.state_dict(),
         'obs_mean': norm.mean,
         'obs_var': norm.var,
-        'obs_count': norm.n, # Important if you want to RESUME training later
-        'episode': config.MAX_EPISODES,
-        'timestep': total_timesteps
+        'obs_count': norm.n,
     }
-
-    torch.save(checkpoint, final_model_path)
-    print("Saved model and normalization stats.")
-
+    torch.save(checkpoint, final_path)
+    print(f"Saved final model to {final_path}")
 
     env.close()
     writer.close()
-    print("Training completed!")
 
 
 if __name__ == "__main__":

@@ -3,11 +3,9 @@ import socket
 
 import tcp.decoder as decoder
 
-packet_size = 168
+packet_size = (2+26)*4#168
 
-# 6 where first 2 are rev + term , other are obs
-#2 + 23
-#2 body rot + 2 body vel (x,y) + 12 leg rot (cos , sin) + 6 leg ang accel + 1 body ang accel + 2 feet + 1 pos 
+# where first 2 are rev + term , other are obs
 
 def Connect():
     # create an INET, STREAMing socket
@@ -31,6 +29,7 @@ def get_and_send_data(data, clientsocket):
 
     while True:
         buf = clientsocket.recv(packet_size)
+       
         if buf != 0:
             return decoder.unpack_float32_array(buf)
 

@@ -4,8 +4,10 @@ import torch.optim as optim
 import numpy as np
 from copy import deepcopy
 
-from models import GaussianActor, QNetwork
+from models import GaussianActor, QNetwork,TwinQNetwork
 from replay_buffer import ReplayBuffer
+
+from untils import update_params
 
 
 class SACAgent:
@@ -25,7 +27,7 @@ class SACAgent:
         ).to(device)
 
         # Critic networks (two Q-networks)
-        self.critic = QNetwork(state_dim, action_dim, config.HIDDEN_UNITS).to(device)
+        self.critic = TwinQNetwork(state_dim, action_dim, config.HIDDEN_UNITS).to(device)
 
         # Target critic (for stable Q-value estimation)
         self.critic_target = deepcopy(self.critic)
@@ -38,22 +40,22 @@ class SACAgent:
         self.actor_optimizer = optim.Adam(
             self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR
         )
-        self.critic_optimizer = optim.Adam(
-            self.critic.parameters(), lr=config.LEARNING_RATE_CRITIC
+        self.q1_optimizer = optim.Adam(
+            self.critic.q1.parameters(), lr=config.LEARNING_RATE_CRITIC
         )
 
-        # Automatic entropy tuning
-        self.auto_entropy = config.AUTO_ENTROPY_TUNING
-        if self.auto_entropy:
-            # Target entropy = -dim(A) (heuristic)
-            self.target_entropy = -action_dim
-            self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
-            self.alpha = self.log_alpha.exp().item()
-            self.alpha_optimizer = optim.Adam(
-                [self.log_alpha], lr=config.LEARNING_RATE_ALPHA
-            )
-        else:
-            self.alpha = config.INIT_ALPHA
+        self.q2_optimizer = optim.Adam(
+            self.critic.q2.parameters(), lr=config.LEARNING_RATE_CRITIC
+        )
+
+        self.target_entropy = -action_dim  # -9 is fine for 9 dims
+        # use zero
+        self.log_alpha = torch.tensor(
+            [0.0], requires_grad=True, device=device
+        )
+        self.alpha_optimizer = optim.Adam(
+            [self.log_alpha], lr=config.LEARNING_RATE_ALPHA
+        )
 
         # Replay buffer
         self.replay_buffer = ReplayBuffer(
@@ -73,7 +75,7 @@ class SACAgent:
         """Store transition in replay buffer."""
         self.replay_buffer.add(state, action, reward, next_state, done)
 
-    def update(self):
+    def update(self,norm):
         """
         Perform one gradient step.
         Returns dict with losses for logging.
@@ -86,31 +88,42 @@ class SACAgent:
             self.config.BATCH_SIZE
         )
 
+
+
+        # Normalize NOW with current statistics
+        states = torch.clamp(
+            (states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
+            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
+            -5.0, 5.0
+        )
+        next_states = torch.clamp(
+            (next_states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
+            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
+            -5.0, 5.0
+        )
+
+    
+
         # ============ Critic Update ============
         with torch.no_grad():
-            # Sample next actions and their log probs
             next_actions, next_log_probs = self.actor.sample(next_states)
-
-            # Target Q-values
             next_q1, next_q2 = self.critic_target(next_states, next_actions)
-            next_q = torch.min(next_q1, next_q2)
-
-            # Soft Bellman target with entropy
-            # y = r + γ(1-d)(min Q(s',a') - α log π(a'|s'))
+            next_q = torch.min(next_q1, next_q2) - self.log_alpha.exp() * next_log_probs
             target_q = rewards + (1 - dones) * self.config.GAMMA * (
-                next_q - self.alpha * next_log_probs
+                next_q
             )
+            
 
-        # Current Q-values
         current_q1, current_q2 = self.critic(states, actions)
 
-        # Critic loss (MSE)
-        critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
+        # Use MSE loss instead of Huber for better gradient signal
+        q1_loss = F.mse_loss(current_q1, target_q) 
+        q2_loss = F.mse_loss(current_q2, target_q)
 
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
-        self.critic_optimizer.step()
+        update_params(self.q1_optimizer,self.critic.q1,q1_loss,1)
+
+        update_params(self.q2_optimizer,self.critic.q2,q2_loss,1)
+
 
         # ============ Actor Update ============
         # Freeze Q-networks to save computation
@@ -125,39 +138,35 @@ class SACAgent:
         q_value = torch.min(q1, q2)
 
         # Actor loss: maximize Q - α log π
-        actor_loss = (self.alpha * log_probs - q_value).mean()
+        #actor_loss = (self.alpha * log_probs - q_value).mean()
 
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 1.0)
-        self.actor_optimizer.step()
+        actor_loss = -(q_value - self.log_alpha.exp().detach() * log_probs).mean()
+
+
+        update_params(self.actor_optimizer,self.actor,actor_loss,1)
 
         # Unfreeze Q-networks
         for param in self.critic.parameters():
             param.requires_grad = True
 
-        # ============ Alpha Update (if auto-tuning) ============
-        alpha_loss = 0.0
-        if self.auto_entropy:
-            # α loss: minimize E[-α(log π + H)]
-            alpha_loss = -(
-                self.log_alpha.exp() * (log_probs + self.target_entropy).detach()
-            ).mean()
 
-            self.alpha_optimizer.zero_grad()
-            alpha_loss.backward()
-            self.alpha_optimizer.step()
 
-            self.alpha = self.log_alpha.exp().item()
+        alpha_loss = (
+            self.log_alpha.exp() * (-log_probs-self.target_entropy).detach()
+        ).mean()
+
+        update_params(self.alpha_optimizer,None,alpha_loss)
+
 
         # ============ Soft Target Update ============
         self._soft_update()
 
         return {
-            "loss/critic": critic_loss.item(),
+            "loss/Q1": q1_loss.item(),
+            "loss/Q2": q2_loss.item(),
             "loss/actor": actor_loss.item(),
-            "loss/alpha": alpha_loss.item() if self.auto_entropy else 0,
-            "alpha": self.alpha,
+            "loss/alpha": alpha_loss.item(),
+            "alpha": self.log_alpha.exp().item(),
             "q_value": q_value.mean().item(),
             "log_prob": log_probs.mean().item(),
         }
@@ -177,22 +186,23 @@ class SACAgent:
             'critic_state_dict': self.critic.state_dict(),
             'critic_target_state_dict': self.critic_target.state_dict(),
             'actor_optimizer': self.actor_optimizer.state_dict(),
-            'critic_optimizer': self.critic_optimizer.state_dict(),
-            'log_alpha': self.log_alpha if self.auto_entropy else None,
-            'alpha_optimizer': self.alpha_optimizer.state_dict() if self.auto_entropy else None,
+            'q1_optimizer': self.q1_optimizer.state_dict(),
+            'q2_optimizer': self.q2_optimizer.state_dict(),
+            'log_alpha': self.log_alpha,
+            'alpha_optimizer': self.alpha_optimizer.state_dict()
         }, path)
 
     def load(self, path):
         """Load model checkpoint."""
-        checkpoint = torch.load(path, map_location=self.device)
+        checkpoint = torch.load(path, map_location=self.device,weights_only=False)
 
         self.actor.load_state_dict(checkpoint['actor_state_dict'])
         self.critic.load_state_dict(checkpoint['critic_state_dict'])
         self.critic_target.load_state_dict(checkpoint['critic_target_state_dict'])
         self.actor_optimizer.load_state_dict(checkpoint['actor_optimizer'])
-        self.critic_optimizer.load_state_dict(checkpoint['critic_optimizer'])
+        self.q1_optimizer.load_state_dict(checkpoint['q1_optimizer'])
+        self.q2_optimizer.load_state_dict(checkpoint['q2_optimizer'])
 
-        if self.auto_entropy and checkpoint['log_alpha'] is not None:
-            self.log_alpha = checkpoint['log_alpha']
-            self.alpha = self.log_alpha.exp().item()
-            self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
+
+        self.log_alpha = checkpoint['log_alpha']
+        self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
