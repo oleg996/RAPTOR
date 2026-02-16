@@ -5,7 +5,7 @@ class Config:
     ENV_NAME = "HalfCheetah-v5"
 
     # Training parameters
-    MAX_EPISODES = 20000
+    MAX_EPISODES = 10
     MAX_TIMESTEPS = 2048
     LOG_INTERVAL = 10
     BATCH_SIZE = 256
@@ -22,7 +22,7 @@ class Config:
 
     # Replay buffer
     BUFFER_SIZE = 1000000
-    MIN_BUFFER_SIZE = 10000
+    MIN_BUFFER_SIZE = 100
 
     # Updates per environment step
     GRADIENT_STEPS = 1

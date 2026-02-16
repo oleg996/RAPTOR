@@ -13,12 +13,12 @@ class Config:
     BATCH_SIZE = 256
     REWARD_SCALE = 1
 
-    NORM_WARM_UP = 50
+    NORM_WARM_UP = 1
 
     # SAC hyperparameters
-    LEARNING_RATE_ACTOR = 1e-4
-    LEARNING_RATE_CRITIC = 1e-4
-    LEARNING_RATE_ALPHA = 3e-5  # ← Slower alpha learning prevents entropy collapse
+    LEARNING_RATE_ACTOR = 3e-4
+    LEARNING_RATE_CRITIC = 3e-4
+    LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.95 #maybe lower??
     TAU = 0.005
 
@@ -41,7 +41,7 @@ class Config:
 
     # Save/Load paths
     MODEL_DIR = "models"
-    MODEL_NAME = "sac_latest.pth"
+    MODEL_NAME = "test.pth"
     TENSORBOARD_LOG_DIR = "runs"
     LOAD_MODEL = False
 
@@ -272,7 +272,7 @@ class SACAgent:
         """Store transition in replay buffer."""
         self.replay_buffer.add(state, action, reward, next_state, done)
 
-    def update(self):
+    def update(self,norm):
         """
         Perform one gradient step.
         Returns dict with losses for logging.
@@ -283,6 +283,20 @@ class SACAgent:
         # Sample batch
         states, actions, rewards, next_states, dones = self.replay_buffer.sample(
             self.config.BATCH_SIZE
+        )
+
+
+
+        # Normalize NOW with current statistics
+        states = torch.clamp(
+            (states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
+            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
+            -5.0, 5.0
+        )
+        next_states = torch.clamp(
+            (next_states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
+            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
+            -5.0, 5.0
         )
 
     
@@ -427,7 +441,7 @@ class RewardNormalizer:
         self.count = total_count
 
     def normalize(self, reward):
-        return reward / (np.sqrt(self.var) + 1e-8) 
+        return reward / (np.sqrt(self.var) + 1e-8)
 
 
 def main():
@@ -440,13 +454,12 @@ def main():
     state_dim = 26
     action_dim = 6
 
+
+
     agent = SACAgent(state_dim, action_dim, config, device)
 
     # State normalization
     norm = inputNorm.RunningMeanStd(state_dim)
-
-    # Reward normalization — critical for SAC!
-    reward_norm = RewardNormalizer()
 
     writer = SummaryWriter(log_dir=config.TENSORBOARD_LOG_DIR)
 
@@ -461,37 +474,35 @@ def main():
     if config.LOAD_MODEL:
         checkpoint_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
         if os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path, map_location=device,weights_only=False)
+            checkpoint = torch.load(checkpoint_path, map_location=device)
             agent.load(checkpoint_path)
             if 'obs_mean' in checkpoint:
                 norm.mean = checkpoint['obs_mean']
                 norm.var = checkpoint['obs_var']
                 norm.n = checkpoint['obs_count']
             print("Model loaded successfully.")
-    else:
-        print(f"Warming up the normalizer for {config.NORM_WARM_UP}")
 
-        rewards = []
-        for episode in range(1, config.NORM_WARM_UP + 1):
-            state, _ = env.reset()
-            for t in range(config.MAX_TIMESTEPS):
-                norm.update(np.array([state]))
-                state_norm = norm.normalize(state)
-                state_norm = np.clip(state_norm, -5.0, 5.0)
+    print(f"Warming up the normalizer for {config.NORM_WARM_UP}")
 
-                action = np.random.uniform(-1, 1, action_dim)
+    rewards = []
+    for episode in range(1, config.NORM_WARM_UP + 1):
+        state, _ = env.reset()
+        for t in range(config.MAX_TIMESTEPS):
+            norm.update(np.array([state]))
 
-                next_state, reward, terminated, truncated, _ = env.step(action)
-                done = terminated or truncated
+            action = np.random.uniform(-1, 1, action_dim)
 
-                rewards.append(reward)
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
 
-                if done:
-                        break
-                state = next_state
+            rewards.append(reward)
 
-        print(f"Reward range: [{min(rewards):.2f}, {max(rewards):.2f}]")
-        print(f"Mean: {np.mean(rewards):.2f}, Std: {np.std(rewards):.2f}")
+            if done:
+                    break
+            state = next_state
+
+    print(f"Reward range: [{min(rewards):.2f}, {max(rewards):.2f}]")
+    print(f"Mean: {np.mean(rewards):.2f}, Std: {np.std(rewards):.2f}")
 
 
     print(f"Starting SAC training")
@@ -523,27 +534,19 @@ def main():
             # Track raw reward for logging
             episode_reward += reward
 
-            # Normalize reward for training
-            #reward_norm.update(reward)
-            #reward_normalized = reward_norm.normalize(reward)
 
-            #print(f"r:{reward}| rn:{reward_normalized}")
-
-
-            next_state_norm = norm.normalize(next_state)
-            next_state_norm = np.clip(next_state_norm, -5.0, 5.0)
 
             # Store with normalized reward
             agent.store_transition(
-                state_norm, action, reward * config.REWARD_SCALE,
-                next_state_norm, float(terminated)
+                state, action, reward * config.REWARD_SCALE,
+                next_state, float(terminated)
             )
 
             episode_length += 1
 
             if len(agent.replay_buffer) >= config.MIN_BUFFER_SIZE:
                 for _ in range(config.GRADIENT_STEPS):
-                    metrics = agent.update()
+                    metrics = agent.update(norm)
 
                     if metrics and total_timesteps % 1000 == 0:
                         for key, value in metrics.items():

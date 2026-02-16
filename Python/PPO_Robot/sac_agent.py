@@ -120,9 +120,15 @@ class SACAgent:
         q1_loss = F.mse_loss(current_q1, target_q) 
         q2_loss = F.mse_loss(current_q2, target_q)
 
-        update_params(self.q1_optimizer,self.critic.q1,q1_loss,1)
 
-        update_params(self.q2_optimizer,self.critic.q2,q2_loss,1)
+        #should be faster
+        self.q1_optimizer.zero_grad()
+        self.q2_optimizer.zero_grad()
+        critic_loss = q1_loss + q2_loss
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
+        self.q1_optimizer.step()
+        self.q2_optimizer.step()
 
 
         # ============ Actor Update ============
