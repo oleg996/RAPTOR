@@ -7,24 +7,24 @@ class Config:
     ENV_NAME = "HalfCheetah-v5"
 
     # Training parameters
-    MAX_EPISODES = 20000
+    MAX_EPISODES = 4000
     MAX_TIMESTEPS = 2048
     LOG_INTERVAL = 10
     BATCH_SIZE = 256
     REWARD_SCALE = 1
 
-    NORM_WARM_UP = 1
+    NORM_WARM_UP = 50
 
     # SAC hyperparameters
     LEARNING_RATE_ACTOR = 3e-4
     LEARNING_RATE_CRITIC = 3e-4
     LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
-    GAMMA = 0.95 #maybe lower??
+    GAMMA = 0.99 
     TAU = 0.005
 
     # Replay buffer
     BUFFER_SIZE = 1000000
-    MIN_BUFFER_SIZE = 10000
+    MIN_BUFFER_SIZE = 3000
 
     # Updates per environment step
     GRADIENT_STEPS = 1
@@ -36,7 +36,7 @@ class Config:
     ACTION_BOUND = 1.0
 
     # Model parameters
-    HIDDEN_UNITS = [256, 256]
+    HIDDEN_UNITS = [256, 256,256]
     DEVICE = "cuda"
 
     # Save/Load paths
@@ -44,7 +44,6 @@ class Config:
     MODEL_NAME = "test.pth"
     TENSORBOARD_LOG_DIR = "runs"
     LOAD_MODEL = False
-
     BACKUP_DIR = "./models/backups"
     BACKUP_INTERVAL = 3600
     MAX_BACKUPS = 5
@@ -78,7 +77,7 @@ class MLP(nn.Module):
             layers.append(nn.Linear(prev_dim, hidden_dim))
             if use_layernorm:
                 layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(nn.ReLU())
+            layers.append(nn.LeakyReLU())
             prev_dim = hidden_dim
 
         # Output layer
@@ -108,13 +107,15 @@ class GaussianActor(nn.Module):
 
         self.action_bound = action_bound
 
+        self.log_std = torch.tensor([0])
+
         # Shared trunk — full hidden layers
         trunk_layers = []
         prev_dim = state_dim
         for hidden_dim in hidden_units:
             trunk_layers.extend([
                 nn.Linear(prev_dim, hidden_dim),
-                nn.ReLU(),
+                nn.LeakyReLU(),
             ])
             prev_dim = hidden_dim
         self.trunk = nn.Sequential(*trunk_layers)
@@ -144,9 +145,10 @@ class GaussianActor(nn.Module):
         x_t = normal.rsample()
         action = torch.tanh(x_t) * self.action_bound
         
-        log_prob = normal.log_prob(x_t).sum(-1, keepdim=True)  # Sum over action dims
-        # More numerically stable Jacobian correction
-        log_prob -= (2 * (np.log(2) - x_t - F.softplus(-2 * x_t))).sum(-1, keepdim=True)
+        log_prob = normal.log_prob(x_t) - 2.0 * (
+        np.log(2.0) - x_t - F.softplus(-2.0 * x_t)
+        )
+        log_prob = log_prob.sum(1, keepdim=True)
         
         return action, log_prob
 
@@ -154,8 +156,11 @@ class GaussianActor(nn.Module):
         """Get action for environment interaction."""
         mean, log_std = self.forward(state)
 
+        self.log_std = log_std
+
         if deterministic:
             return torch.tanh(mean) * self.action_bound
+            
         else:
             std = log_std.exp()
             normal = Normal(mean, std)
@@ -171,7 +176,7 @@ class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_units):
         super(QNetwork, self).__init__()
 
-        self.q0 = MLP(state_dim + action_dim, hidden_units, 1)
+        self.q0 = MLP(state_dim + action_dim, hidden_units, 1,use_layernorm=True)
     
 
     def forward(self, state, action):
@@ -248,7 +253,7 @@ class SACAgent:
         self.target_entropy = -action_dim  # -9 is fine for 9 dims
         # use zero
         self.log_alpha = torch.tensor(
-            [0.0], requires_grad=True, device=device
+            [np.log(config.INIT_ALPHA)], requires_grad=True, device=device,dtype=torch.float32
         )
         self.alpha_optimizer = optim.Adam(
             [self.log_alpha], lr=config.LEARNING_RATE_ALPHA
@@ -309,17 +314,25 @@ class SACAgent:
             target_q = rewards + (1 - dones) * self.config.GAMMA * (
                 next_q
             )
-            
+        
 
         current_q1, current_q2 = self.critic(states, actions)
 
-        # Use MSE loss instead of Huber for better gradient signal
+        
+
         q1_loss = F.mse_loss(current_q1, target_q) 
         q2_loss = F.mse_loss(current_q2, target_q)
 
-        update_params(self.q1_optimizer,self.critic.q1,q1_loss,1)
 
-        update_params(self.q2_optimizer,self.critic.q2,q2_loss,1)
+        #should be faster
+        self.q1_optimizer.zero_grad()
+        self.q2_optimizer.zero_grad()
+        critic_loss = q1_loss + q2_loss
+        
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
+        self.q1_optimizer.step()
+        self.q2_optimizer.step()
 
 
         # ============ Actor Update ============
@@ -335,9 +348,10 @@ class SACAgent:
         q_value = torch.min(q1, q2)
 
         # Actor loss: maximize Q - α log π
-        #actor_loss = (self.alpha * log_probs - q_value).mean()
 
-        actor_loss = -(q_value - self.log_alpha.exp().detach() * log_probs).mean()
+        actor_loss = (self.log_alpha.exp().detach() * log_probs - q_value).mean()
+
+        
 
 
         update_params(self.actor_optimizer,self.actor,actor_loss,1)
@@ -348,8 +362,8 @@ class SACAgent:
 
 
 
-        alpha_loss = (
-            self.log_alpha.exp() * (-log_probs-self.target_entropy).detach()
+        alpha_loss = -(
+            self.log_alpha * (log_probs+self.target_entropy).detach()
         ).mean()
 
         update_params(self.alpha_optimizer,None,alpha_loss)
@@ -451,8 +465,8 @@ def main():
 
     env = tcp.Tcp_env.Tpc_env()
     env.connect()
-    state_dim = 26
-    action_dim = 6
+    state_dim = 40  
+    action_dim = 9
 
 
 
@@ -474,7 +488,7 @@ def main():
     if config.LOAD_MODEL:
         checkpoint_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
         if os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path, map_location=device)
+            checkpoint = torch.load(checkpoint_path, map_location=device,weights_only=False)
             agent.load(checkpoint_path)
             if 'obs_mean' in checkpoint:
                 norm.mean = checkpoint['obs_mean']
@@ -577,6 +591,7 @@ def main():
                 f"Buf: {len(agent.replay_buffer):7d} | "
                 f"α: {agent.log_alpha.exp().item():.4f} | "
                 f"Steps: {total_timesteps}"
+                f"Last std {agent.actor.log_std.exp().mean().item():.4f}"
             )
 
             writer.add_scalar("reward/avg_reward", avg_reward, episode)

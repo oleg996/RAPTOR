@@ -45,8 +45,8 @@ def main():
 
     env = tcp.Tcp_env.Tpc_env()
     env.connect()
-    state_dim = 26
-    action_dim = 6
+    state_dim = 40  
+    action_dim = 9
 
 
 
@@ -68,7 +68,7 @@ def main():
     if config.LOAD_MODEL:
         checkpoint_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
         if os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path, map_location=device)
+            checkpoint = torch.load(checkpoint_path, map_location=device,weights_only=False)
             agent.load(checkpoint_path)
             if 'obs_mean' in checkpoint:
                 norm.mean = checkpoint['obs_mean']
@@ -171,6 +171,7 @@ def main():
                 f"Buf: {len(agent.replay_buffer):7d} | "
                 f"α: {agent.log_alpha.exp().item():.4f} | "
                 f"Steps: {total_timesteps}"
+                f"Last std {agent.actor.log_std.exp().mean().item():.4f}"
             )
 
             writer.add_scalar("reward/avg_reward", avg_reward, episode)

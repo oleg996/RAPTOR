@@ -51,7 +51,7 @@ class SACAgent:
         self.target_entropy = -action_dim  # -9 is fine for 9 dims
         # use zero
         self.log_alpha = torch.tensor(
-            [0.0], requires_grad=True, device=device
+            [np.log(config.INIT_ALPHA)], requires_grad=True, device=device,dtype=torch.float32
         )
         self.alpha_optimizer = optim.Adam(
             [self.log_alpha], lr=config.LEARNING_RATE_ALPHA
@@ -112,11 +112,12 @@ class SACAgent:
             target_q = rewards + (1 - dones) * self.config.GAMMA * (
                 next_q
             )
-            
+        
 
         current_q1, current_q2 = self.critic(states, actions)
 
-        # Use MSE loss instead of Huber for better gradient signal
+        
+
         q1_loss = F.mse_loss(current_q1, target_q) 
         q2_loss = F.mse_loss(current_q2, target_q)
 
@@ -125,6 +126,7 @@ class SACAgent:
         self.q1_optimizer.zero_grad()
         self.q2_optimizer.zero_grad()
         critic_loss = q1_loss + q2_loss
+        
         critic_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
         self.q1_optimizer.step()
@@ -144,9 +146,10 @@ class SACAgent:
         q_value = torch.min(q1, q2)
 
         # Actor loss: maximize Q - α log π
-        #actor_loss = (self.alpha * log_probs - q_value).mean()
 
-        actor_loss = -(q_value - self.log_alpha.exp().detach() * log_probs).mean()
+        actor_loss = (self.log_alpha.exp().detach() * log_probs - q_value).mean()
+
+        
 
 
         update_params(self.actor_optimizer,self.actor,actor_loss,1)
@@ -157,8 +160,8 @@ class SACAgent:
 
 
 
-        alpha_loss = (
-            self.log_alpha.exp() * (-log_probs-self.target_entropy).detach()
+        alpha_loss = -(
+            self.log_alpha * (log_probs+self.target_entropy).detach()
         ).mean()
 
         update_params(self.alpha_optimizer,None,alpha_loss)

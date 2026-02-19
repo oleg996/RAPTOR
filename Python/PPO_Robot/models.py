@@ -22,7 +22,7 @@ class MLP(nn.Module):
             layers.append(nn.Linear(prev_dim, hidden_dim))
             if use_layernorm:
                 layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(nn.ReLU())
+            layers.append(nn.LeakyReLU())
             prev_dim = hidden_dim
 
         # Output layer
@@ -52,13 +52,15 @@ class GaussianActor(nn.Module):
 
         self.action_bound = action_bound
 
+        self.log_std = torch.tensor([0])
+
         # Shared trunk — full hidden layers
         trunk_layers = []
         prev_dim = state_dim
         for hidden_dim in hidden_units:
             trunk_layers.extend([
                 nn.Linear(prev_dim, hidden_dim),
-                nn.ReLU(),
+                nn.LeakyReLU(),
             ])
             prev_dim = hidden_dim
         self.trunk = nn.Sequential(*trunk_layers)
@@ -88,9 +90,10 @@ class GaussianActor(nn.Module):
         x_t = normal.rsample()
         action = torch.tanh(x_t) * self.action_bound
         
-        log_prob = normal.log_prob(x_t).sum(-1, keepdim=True)  # Sum over action dims
-        # More numerically stable Jacobian correction
-        log_prob -= (2 * (np.log(2) - x_t - F.softplus(-2 * x_t))).sum(-1, keepdim=True)
+        log_prob = normal.log_prob(x_t) - 2.0 * (
+        np.log(2.0) - x_t - F.softplus(-2.0 * x_t)
+        )
+        log_prob = log_prob.sum(1, keepdim=True)
         
         return action, log_prob
 
@@ -98,8 +101,11 @@ class GaussianActor(nn.Module):
         """Get action for environment interaction."""
         mean, log_std = self.forward(state)
 
+        self.log_std = log_std
+
         if deterministic:
             return torch.tanh(mean) * self.action_bound
+            
         else:
             std = log_std.exp()
             normal = Normal(mean, std)
@@ -115,7 +121,7 @@ class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_units):
         super(QNetwork, self).__init__()
 
-        self.q0 = MLP(state_dim + action_dim, hidden_units, 1)
+        self.q0 = MLP(state_dim + action_dim, hidden_units, 1,use_layernorm=True)
     
 
     def forward(self, state, action):

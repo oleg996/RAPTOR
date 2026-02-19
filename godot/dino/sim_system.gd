@@ -5,14 +5,13 @@ var reset_frame = false
 
 var parts 
 
-var velocity_div = 30
 
 var counter = 0
 
 
-var standard_FPS = 30
+var standard_FPS = 60
 
-var speed_Factor = 1
+var speed_Factor = 2
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -160,7 +159,7 @@ func calculate_revard():
 	
 	
 	
-	var rev = mov - en_pen * 0.05
+	var rev = mov - en_pen * 0.01
 	return rev
 	
 func reset():
@@ -176,7 +175,7 @@ func is_terminal():
 	
 	end = end or $dino/tail1.get_contact_count() > 0 or $dino/tail2.get_contact_count() > 0  or $dino/neck1.get_contact_count() > 0 
 	
-	return end
+	return false
 
 func add_angle(arr, angle):
 	arr.append(cos(angle))

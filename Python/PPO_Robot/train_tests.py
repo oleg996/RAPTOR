@@ -106,7 +106,7 @@ def main():
         state, _ = env.reset()
         episode_reward = 0
         episode_length = 0
-
+        obs = 0
         for t in range(config.MAX_TIMESTEPS):
             total_timesteps += 1
 
@@ -149,7 +149,7 @@ def main():
                 break
 
             state = next_state
-
+            obs = state_norm
         episode_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
 
@@ -169,7 +169,8 @@ def main():
                 f"Len: {avg_length:4d} | "
                 f"Buf: {len(agent.replay_buffer):7d} | "
                 f"α: {agent.log_alpha.exp().item():.4f} | "
-                f"Steps: {total_timesteps}"
+                f"Steps: {total_timesteps} |"
+                f"Last obs {obs}"
             )
 
             writer.add_scalar("reward/avg_reward", avg_reward, episode)

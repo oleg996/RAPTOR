@@ -5,6 +5,7 @@ from sac_agent import SACAgent  # Changed from PPOAgent
 import os
 import tcp.Tcp_env
 import inputNorm
+import gymnasium as gym
 
 
 def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True):
@@ -13,10 +14,10 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     device = torch.device(config.DEVICE)
 
     # Initialize environment
-    env = tcp.Tcp_env.Tpc_env()
-    env.connect()
-    state_dim = 40  
-    action_dim = 9
+    env = gym.make(config.ENV_NAME)
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+
 
     # Initialize SAC agent
     agent = SACAgent(state_dim, action_dim, config, device)
@@ -72,7 +73,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
 
                 # Take step
                 state, reward, terminated, truncated, _ = env.step(action)
-               # done = terminated or truncated
+                done = terminated or truncated
 
                 episode_reward += reward
                 time_steps += 1
