@@ -11,7 +11,7 @@ var counter = 0
 
 var standard_FPS = 60
 
-var speed_Factor = 2
+var speed_Factor = 5
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:

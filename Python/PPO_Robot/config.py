@@ -2,13 +2,13 @@ import os
 
 
 class Config:
-    ENV_NAME = "HalfCheetah-v5"
+    ENV_NAME = "Humanoid-v5"
 
     # Training parameters
-    MAX_EPISODES = 4000
+    MAX_EPISODES = 10000
     MAX_TIMESTEPS = 2048
     LOG_INTERVAL = 10
-    BATCH_SIZE = 256
+    BATCH_SIZE = 2048
     REWARD_SCALE = 1
 
     NORM_WARM_UP = 50
@@ -18,14 +18,14 @@ class Config:
     LEARNING_RATE_CRITIC = 3e-4
     LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.99 
-    TAU = 0.005
+    TAU = 0.01
 
     # Replay buffer
     BUFFER_SIZE = 1000000
     MIN_BUFFER_SIZE = 3000
 
     # Updates per environment step
-    GRADIENT_STEPS = 1
+    GRADIENT_STEPS = 10
 
     # Entropy tuning
     AUTO_ENTROPY_TUNING = True

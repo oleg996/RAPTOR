@@ -4,13 +4,13 @@ import os
 
 
 class Config:
-    ENV_NAME = "HalfCheetah-v5"
+    ENV_NAME = "Humanoid-v5"
 
     # Training parameters
-    MAX_EPISODES = 4000
+    MAX_EPISODES = 10000
     MAX_TIMESTEPS = 2048
     LOG_INTERVAL = 10
-    BATCH_SIZE = 256
+    BATCH_SIZE = 2048
     REWARD_SCALE = 1
 
     NORM_WARM_UP = 50
@@ -20,14 +20,14 @@ class Config:
     LEARNING_RATE_CRITIC = 3e-4
     LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.99 
-    TAU = 0.005
+    TAU = 0.01
 
     # Replay buffer
     BUFFER_SIZE = 1000000
     MIN_BUFFER_SIZE = 3000
 
     # Updates per environment step
-    GRADIENT_STEPS = 1
+    GRADIENT_STEPS = 10
 
     # Entropy tuning
     AUTO_ENTROPY_TUNING = True
@@ -206,6 +206,7 @@ import torch.optim as optim
 import numpy as np
 from copy import deepcopy
 
+
 from models import GaussianActor, QNetwork,TwinQNetwork
 from replay_buffer import ReplayBuffer
 
@@ -239,14 +240,14 @@ class SACAgent:
             param.requires_grad = False
 
         # Optimizers
-        self.actor_optimizer = optim.Adam(
+        self.actor_optimizer = optim.AdamW(
             self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR
         )
-        self.q1_optimizer = optim.Adam(
+        self.q1_optimizer = optim.AdamW(
             self.critic.q1.parameters(), lr=config.LEARNING_RATE_CRITIC
         )
 
-        self.q2_optimizer = optim.Adam(
+        self.q2_optimizer = optim.AdamW(
             self.critic.q2.parameters(), lr=config.LEARNING_RATE_CRITIC
         )
 
@@ -255,7 +256,7 @@ class SACAgent:
         self.log_alpha = torch.tensor(
             [np.log(config.INIT_ALPHA)], requires_grad=True, device=device,dtype=torch.float32
         )
-        self.alpha_optimizer = optim.Adam(
+        self.alpha_optimizer = optim.AdamW(
             [self.log_alpha], lr=config.LEARNING_RATE_ALPHA
         )
 
@@ -425,6 +426,9 @@ import time
 import datetime
 import glob
 
+import threading
+import queue
+
 from config import Config
 from sac_agent import SACAgent
 import inputNorm
@@ -433,29 +437,16 @@ from torch.utils.tensorboard import SummaryWriter
 import tcp.Tcp_env
 
 
-class RewardNormalizer:
-    """Normalize rewards using running statistics."""
-    def __init__(self):
-        self.mean = 0.0
-        self.var = 1.0
-        self.count = 1e-4
+def train(agent,config,norm,metricsQue : queue.Queue):
+    while True:
+        if len(agent.replay_buffer) >= config.MIN_BUFFER_SIZE:
+            for i in range(100):
+                for _ in range(config.GRADIENT_STEPS):
+                    metrics = agent.update(norm)
+                    metricsQue.put_nowait(metrics)
+            print("performed 100 optimisation steps|Last metrics")
 
-    def update(self, reward):
-        batch_mean = reward
-        batch_var = 0.0
-        batch_count = 1
 
-        delta = batch_mean - self.mean
-        total_count = self.count + batch_count
-        self.mean += delta * batch_count / total_count
-        self.var = (
-            (self.var * self.count + batch_var * batch_count) / total_count
-            + delta**2 * self.count * batch_count / total_count**2
-        )
-        self.count = total_count
-
-    def normalize(self, reward):
-        return reward / (np.sqrt(self.var) + 1e-8)
 
 
 def main():
@@ -468,6 +459,7 @@ def main():
     state_dim = 40  
     action_dim = 9
 
+    
 
 
     agent = SACAgent(state_dim, action_dim, config, device)
@@ -476,6 +468,10 @@ def main():
     norm = inputNorm.RunningMeanStd(state_dim)
 
     writer = SummaryWriter(log_dir=config.TENSORBOARD_LOG_DIR)
+
+    metricsQue = queue.Queue(0)
+
+    trainThread = threading.Thread(target=train,args=(agent,config,norm,metricsQue))
 
     episode_rewards = []
     episode_lengths = []
@@ -488,7 +484,7 @@ def main():
     if config.LOAD_MODEL:
         checkpoint_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
         if os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path, map_location=device,weights_only=False)
+            checkpoint = torch.load(checkpoint_path, map_location=device)
             agent.load(checkpoint_path)
             if 'obs_mean' in checkpoint:
                 norm.mean = checkpoint['obs_mean']
@@ -523,11 +519,13 @@ def main():
     print(f"State dim: {state_dim}, Action dim: {action_dim}")
     print(f"Buffer will start training after {config.MIN_BUFFER_SIZE} steps")
 
+    
+
     for episode in range(1, config.MAX_EPISODES + 1):
         state, _ = env.reset()
         episode_reward = 0
         episode_length = 0
-
+        obs = 0
         for t in range(config.MAX_TIMESTEPS):
             total_timesteps += 1
 
@@ -558,19 +556,21 @@ def main():
 
             episode_length += 1
 
-            if len(agent.replay_buffer) >= config.MIN_BUFFER_SIZE:
-                for _ in range(config.GRADIENT_STEPS):
-                    metrics = agent.update(norm)
+            if len(agent.replay_buffer) >= config.MIN_BUFFER_SIZE and not trainThread.is_alive():
+                trainThread.start()
 
-                    if metrics and total_timesteps % 1000 == 0:
-                        for key, value in metrics.items():
-                            writer.add_scalar(key, value, total_timesteps)
+            if metricsQue.qsize() != 0:
+                metrics = metricsQue.get()
+                
+                for key, value in metrics.items():
+                    writer.add_scalar(key, value, total_timesteps)
+
 
             if done:
                 break
 
             state = next_state
-
+            obs = state_norm
         episode_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
 
@@ -590,7 +590,7 @@ def main():
                 f"Len: {avg_length:4d} | "
                 f"Buf: {len(agent.replay_buffer):7d} | "
                 f"α: {agent.log_alpha.exp().item():.4f} | "
-                f"Steps: {total_timesteps}"
+                f"Steps: {total_timesteps} |"
                 f"Last std {agent.actor.log_std.exp().mean().item():.4f}"
             )
 
