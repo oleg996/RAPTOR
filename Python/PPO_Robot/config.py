@@ -2,10 +2,10 @@ import os
 
 
 class Config:
-    ENV_NAME = "Humanoid-v5"
+    ENV_NAME = "HumanoidStandup-v5"
 
     # Training parameters
-    MAX_EPISODES = 10000
+    MAX_EPISODES = 30000
     MAX_TIMESTEPS = 2048
     LOG_INTERVAL = 10
     BATCH_SIZE = 2048

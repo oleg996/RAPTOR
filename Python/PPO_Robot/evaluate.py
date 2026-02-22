@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from config import Config
-from sac_agent import SACAgent  # Changed from PPOAgent
+from sac_agent import SACAgent  
 import os
 import tcp.Tcp_env
 import inputNorm
@@ -11,10 +11,10 @@ import gymnasium as gym
 def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True):
     """Evaluate a trained SAC model."""
     config = Config()
-    device = torch.device(config.DEVICE)
+    device = torch.device(config.DEVICE,)
 
     # Initialize environment
-    env = gym.make(config.ENV_NAME)
+    env = gym.make(config.ENV_NAME, render_mode='human')
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
 

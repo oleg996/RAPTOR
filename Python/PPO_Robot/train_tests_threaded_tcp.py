@@ -5,33 +5,29 @@ import time
 import datetime
 import glob
 
-import torch.multiprocessing as multiprocessing
-
-from torch.multiprocessing import Queue
+import threading
+import queue
 
 from config import Config
 from sac_agent import SACAgent
 import inputNorm
 from torch.utils.tensorboard import SummaryWriter
 
-import time
+
+
 import tcp.Tcp_env
 
-
-
-def train(agent :SACAgent,config,norm,metricsQue : Queue,agent_live : SACAgent):
+def train(agent : SACAgent,config,norm,metricsQue : queue.Queue,agent_live : SACAgent,thread_lock):
     while True:
         if len(agent.replay_buffer) >= config.MIN_BUFFER_SIZE:
             for i in range(100):
                 for _ in range(config.GRADIENT_STEPS):
-                    metrics = agent.update(norm)
+                    with thread_lock:
+                        buf = agent.replay_buffer.sample(config.BATCH_SIZE)
+                    metrics = agent.update_from_buf(norm,buf)
                     metricsQue.put_nowait(metrics)
-            print("performed 100 optimisation steps|Last metrics")
             agent_live.actor.load_state_dict(agent.actor.state_dict())
-        else:
-            print("Buffer is not full",len(agent.replay_buffer))
-        time.sleep(0.5)
-
+            print("performed 100 optimisation steps|Last metrics")
 
 
 
@@ -58,13 +54,14 @@ def main():
 
     writer = SummaryWriter(log_dir=config.TENSORBOARD_LOG_DIR)
 
-    
+    metricsQue = queue.Queue(0)
 
-    ctx = multiprocessing.get_context("spawn")
+    buffer_lock = threading.Lock()
 
-    metricsQue = ctx.Queue(0)
+    trainThread = threading.Thread(target=train,args=(agent,config,norm,metricsQue,agent_live,buffer_lock))
 
-    trainThread = ctx.Process(target=train,args=(agent,config,norm,metricsQue,agent_live))
+
+
 
     episode_rewards = []
     episode_lengths = []
@@ -113,7 +110,6 @@ def main():
     print(f"Buffer will start training after {config.MIN_BUFFER_SIZE} steps")
 
     
-    
 
     for episode in range(1, config.MAX_EPISODES + 1):
         state, _ = env.reset()
@@ -132,7 +128,7 @@ def main():
             if len(agent.replay_buffer) < config.MIN_BUFFER_SIZE:
                 action = np.random.uniform(-1, 1, action_dim)
             else:
-                action = agent_live.select_action(state_norm, deterministic=False)
+                action = agent.select_action(state_norm, deterministic=False)
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
@@ -142,11 +138,11 @@ def main():
 
 
 
-            # Store with normalized reward
-            agent.store_transition(
-                state, action, reward * config.REWARD_SCALE,
-                next_state, float(terminated)
-            )
+            with buffer_lock:
+                agent.store_transition(
+                    state, action, reward * config.REWARD_SCALE,
+                    next_state, float(terminated)
+                )
 
             episode_length += 1
 
@@ -164,6 +160,7 @@ def main():
                 break
 
             state = next_state
+            obs = state_norm
         episode_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
 

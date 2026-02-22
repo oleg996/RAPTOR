@@ -22,8 +22,8 @@ func _process(delta: float) -> void:
 	
 	
 	var axis = second_obg.global_transform.basis.z
-	second_obg.apply_torque(axis  * pow * max_tor * 0.5)
-	first_obg.apply_torque(axis * -1 * pow * max_tor * 0.5)
+	second_obg.apply_torque(axis  * pow * max_tor)
+	first_obg.apply_torque(axis * -1 * pow * max_tor)
 	
 func get_angle():
 	var rot1 = first_obg.rotation.z
@@ -45,5 +45,5 @@ func get_vel():
 	
 func  _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.is_pressed():
-		#pow = -pow
+		pow = -pow
 		pass

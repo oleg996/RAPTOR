@@ -26,6 +26,8 @@ TcpApi="*res://TCP_api.gd"
 [display]
 
 window/size/viewport_width=648
+window/size/always_on_top=true
+window/size/no_focus=true
 window/vsync/vsync_mode=0
 
 [physics]

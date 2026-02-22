@@ -181,6 +181,109 @@ class SACAgent:
             "log_prob": log_probs.mean().item(),
         }
 
+    def update_from_buf(self,norm,buffer):
+        """
+        Perform one gradient step.
+        Returns dict with losses for logging.
+        """
+        if len(self.replay_buffer) < self.config.MIN_BUFFER_SIZE:
+            return None
+
+        # Sample batch
+        states, actions, rewards, next_states, dones = buffer
+
+
+
+        # Normalize NOW with current statistics
+        states = torch.clamp(
+            (states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
+            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
+            -5.0, 5.0
+        )
+        next_states = torch.clamp(
+            (next_states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
+            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
+            -5.0, 5.0
+        )
+
+    
+
+        # ============ Critic Update ============
+        with torch.no_grad():
+            next_actions, next_log_probs = self.actor.sample(next_states)
+            next_q1, next_q2 = self.critic_target(next_states, next_actions)
+            next_q = torch.min(next_q1, next_q2) - self.log_alpha.exp() * next_log_probs
+            target_q = rewards + (1 - dones) * self.config.GAMMA * (
+                next_q
+            )
+        
+
+        current_q1, current_q2 = self.critic(states, actions)
+
+        
+
+        q1_loss = F.mse_loss(current_q1, target_q) 
+        q2_loss = F.mse_loss(current_q2, target_q)
+
+
+        #should be faster
+        self.q1_optimizer.zero_grad()
+        self.q2_optimizer.zero_grad()
+        critic_loss = q1_loss + q2_loss
+        
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
+        self.q1_optimizer.step()
+        self.q2_optimizer.step()
+
+
+        # ============ Actor Update ============
+        # Freeze Q-networks to save computation
+        for param in self.critic.parameters():
+            param.requires_grad = False
+
+        # Sample actions from current policy
+        new_actions, log_probs = self.actor.sample(states)
+
+        # Q-value of new actions
+        q1, q2 = self.critic(states, new_actions)
+        q_value = torch.min(q1, q2)
+
+        # Actor loss: maximize Q - α log π
+
+        actor_loss = (self.log_alpha.exp().detach() * log_probs - q_value).mean()
+
+        
+
+
+        update_params(self.actor_optimizer,self.actor,actor_loss,1)
+
+        # Unfreeze Q-networks
+        for param in self.critic.parameters():
+            param.requires_grad = True
+
+
+
+        alpha_loss = -(
+            self.log_alpha * (log_probs+self.target_entropy).detach()
+        ).mean()
+
+        update_params(self.alpha_optimizer,None,alpha_loss)
+
+
+        # ============ Soft Target Update ============
+        self._soft_update()
+
+        return {
+            "loss/Q1": q1_loss.item(),
+            "loss/Q2": q2_loss.item(),
+            "loss/actor": actor_loss.item(),
+            "loss/alpha": alpha_loss.item(),
+            "alpha": self.log_alpha.exp().item(),
+            "q_value": q_value.mean().item(),
+            "log_prob": log_probs.mean().item(),
+        }
+    
     def _soft_update(self):
         """Soft update of target network: θ' = τθ + (1-τ)θ'"""
         tau = self.config.TAU
