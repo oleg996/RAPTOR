@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 from copy import deepcopy
 
-
+from optim.lion import Lion
 from models import GaussianActor, QNetwork,TwinQNetwork
 from replay_buffer import ReplayBuffer
 
@@ -38,7 +38,7 @@ class SACAgent:
             param.requires_grad = False
 
         # Optimizers
-        self.actor_optimizer = optim.AdamW(
+        self.actor_optimizer = Lion(
             self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR
         )
         self.q1_optimizer = optim.AdamW(
@@ -54,7 +54,7 @@ class SACAgent:
         self.log_alpha = torch.tensor(
             [np.log(config.INIT_ALPHA)], requires_grad=True, device=device,dtype=torch.float32
         )
-        self.alpha_optimizer = optim.AdamW(
+        self.alpha_optimizer = optim.Adam(
             [self.log_alpha], lr=config.LEARNING_RATE_ALPHA
         )
 

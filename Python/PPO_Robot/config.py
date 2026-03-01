@@ -2,7 +2,7 @@ import os
 
 
 class Config:
-    ENV_NAME = "HumanoidStandup-v5"
+    ENV_NAME = "Humanoid-v5"
 
     # Training parameters
     MAX_EPISODES = 30000
@@ -14,7 +14,7 @@ class Config:
     NORM_WARM_UP = 50
 
     # SAC hyperparameters
-    LEARNING_RATE_ACTOR = 3e-4
+    LEARNING_RATE_ACTOR = 3e-5
     LEARNING_RATE_CRITIC = 3e-4
     LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.99 

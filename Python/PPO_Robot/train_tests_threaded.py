@@ -126,7 +126,7 @@ def main():
             if len(agent.replay_buffer) < config.MIN_BUFFER_SIZE:
                 action = np.random.uniform(-1, 1, action_dim)
             else:
-                action = agent.select_action(state_norm, deterministic=False)
+                action = agent_live.select_action(state_norm, deterministic=False)
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
