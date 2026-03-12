@@ -2,10 +2,10 @@ import os
 
 
 class Config:
-    ENV_NAME = "Humanoid-v5"
+    ENV_NAME = "Ant-v5"
 
     # Training parameters
-    MAX_EPISODES = 50000
+    MAX_EPISODES = 20000
     MAX_TIMESTEPS = 2048
     LOG_INTERVAL = 10
     BATCH_SIZE = 2048
@@ -14,9 +14,9 @@ class Config:
     NORM_WARM_UP = 1
 
     # SAC hyperparameters drop when training a robot!!
-    LEARNING_RATE_ACTOR = 3e-4
-    LEARNING_RATE_CRITIC = 3e-4
-    LEARNING_RATE_ALPHA = 2e-4  # ← Slower alpha learning prevents entropy collapse
+    LEARNING_RATE_ACTOR = 1e-4
+    LEARNING_RATE_CRITIC = 1e-4
+    LEARNING_RATE_ALPHA = 8e-5  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.99 
     TAU = 0.01
 
@@ -40,7 +40,7 @@ class Config:
 
     # Save/Load paths
     MODEL_DIR = "models"
-    MODEL_NAME = "last.pth"
+    MODEL_NAME = "spoder.pth"
     TENSORBOARD_LOG_DIR = "runs"
     LOAD_MODEL = False
     BACKUP_DIR = "./models/backups"
