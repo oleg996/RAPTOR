@@ -8,9 +8,9 @@ var data_to_send = [1.2,1.3,1.5,1.5]
 var data_to_recive = []
 
 
-var debug = false
+var debug = true
 
-var in_lenght = 40
+var in_lenght = 36
 #4 bytes per digitt + 1 for reset?
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:

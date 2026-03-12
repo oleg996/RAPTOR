@@ -19,10 +19,10 @@ func _ready() -> void:
 
 	Engine.max_fps = standard_FPS*speed_Factor
 	
-	Engine.physics_ticks_per_second = standard_FPS*speed_Factor
+	Engine.physics_ticks_per_second = standard_FPS*speed_Factor*3
 	
 	
-	parts = [$dino/body,$dino/bleg1,$dino/bleg2,$dino/bleg3,$dino/fleg1,$dino/fleg2,$dino/fleg3,$dino/tail1,$dino/tail2,$dino/neck1]
+	parts = [$dino/body,$dino/bleg1,$dino/bleg2,$dino/bleg3,$dino/fleg1,$dino/fleg2,$dino/fleg3,$dino/tail1,$dino/neck1]
 	
 	
 
@@ -43,7 +43,7 @@ func tick():
 	else :
 		var actions = []
 		
-		for i in range(9):
+		for i in range(8):
 			TcpApi.data_to_recive.remove_at(0)
 			actions.append(TcpApi.data_to_recive[0])
 		
@@ -74,9 +74,8 @@ func perform_actions(actions):
 	$dino/fleg2/fleg2_fleg3.pow = actions[5]
 	
 	$dino/body_tail1.pow = actions[6]
-	$dino/tail1/tail1_tail2.pow = actions[7]
 	
-	$dino/body_neck1.pow = actions[8]
+	$dino/body_neck1.pow = actions[7]
 	
 func perform_observarions():
 	var obss = []
@@ -116,7 +115,6 @@ func perform_observarions():
 	add_angle(obss,$dino/fleg2/fleg2_fleg3.get_angle())
 	
 	add_angle(obss,$dino/body_tail1.get_angle())
-	add_angle(obss,$dino/tail1/tail1_tail2.get_angle())
 	
 	add_angle(obss,$dino/body_neck1.get_angle())
 	
@@ -131,7 +129,6 @@ func perform_observarions():
 	obss.append($dino/fleg2/fleg2_fleg3.get_vel())
 	
 	obss.append($dino/body_tail1.get_vel())
-	obss.append($dino/tail1/tail1_tail2.get_vel())
 	
 	obss.append($dino/body_neck1.get_vel())
 	
@@ -153,13 +150,13 @@ func calculate_revard():
 	
 	var en_pen = pow($dino/body_bleg1.pow ,2) + pow($dino/bleg1/bleg1_bleg2.pow ,2) + pow($dino/bleg2/bleg2_bleg3.pow ,2)
 	en_pen += 	pow($dino/body_fleg1.pow,2) + pow($dino/fleg1/fleg1_fleg2.pow,2) + pow($dino/fleg2/fleg2_fleg3.pow,2)
-	en_pen += 	pow($dino/body_tail1.pow,2) + pow($dino/tail1/tail1_tail2.pow,2) + pow($dino/body_neck1.pow,2)
+	en_pen += 	pow($dino/body_tail1.pow,2) + pow($dino/body_neck1.pow,2)
 	
-	var mov = $dino/body.linear_velocity.x #+ abs($dino/body.linear_velocity.z)
+	var mov = - abs($dino/body.linear_velocity.x) - abs($dino/body.linear_velocity.z)
 	
 	
 	
-	var rev = mov - en_pen * 0.01
+	var rev = 1 + mov - en_pen * 0.01                                                 
 	return rev
 	
 func reset():
@@ -173,9 +170,9 @@ func reset():
 func is_terminal():
 	var end = $dino/body.get_contact_count() > 0 or  $dino/bleg1.get_contact_count() > 0 or  $dino/bleg2.get_contact_count() > 0 or  $dino/fleg1.get_contact_count() > 0 or  $dino/fleg2.get_contact_count() > 0
 	
-	end = end or $dino/tail1.get_contact_count() > 0 or $dino/tail2.get_contact_count() > 0  or $dino/neck1.get_contact_count() > 0 
+	end = end or $dino/tail1.get_contact_count() > 0  or $dino/neck1.get_contact_count() > 0 
 	
-	return false
+	return end
 
 func add_angle(arr, angle):
 	arr.append(cos(angle))

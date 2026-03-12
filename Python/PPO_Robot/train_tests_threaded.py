@@ -179,7 +179,6 @@ def main():
                 f"Buf: {len(agent.replay_buffer):7d} | "
                 f"α: {agent.log_alpha.exp().item():.4f} | "
                 f"Steps: {total_timesteps} |"
-                f"Last std {agent.actor.log_std.exp().mean().item():.4f}"
             )
 
             writer.add_scalar("reward/avg_reward", avg_reward, episode)

@@ -39,8 +39,8 @@ def main():
 
     env = tcp.Tcp_env.Tpc_env()
     env.connect()
-    state_dim = 40  
-    action_dim = 9
+    state_dim = 37  
+    action_dim = 8
 
     
 

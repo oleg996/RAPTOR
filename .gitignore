@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+#custom directories
+
+Python/PPO_Robot/models/
+Python/PPO_Robot/runs/
+

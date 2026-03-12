@@ -15,8 +15,8 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     # Initialize environment
     env = tcp.Tcp_env.Tpc_env()
     env.connect()
-    state_dim = 40  
-    action_dim = 9
+    state_dim = 37 
+    action_dim = 8
 
     # Initialize SAC agent
     agent = SACAgent(state_dim, action_dim, config, device)
@@ -72,7 +72,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
 
                 # Take step
                 state, reward, terminated, truncated, _ = env.step(action)
-               # done = terminated or truncated
+                done = terminated or truncated
 
                 episode_reward += reward
                 time_steps += 1

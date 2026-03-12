@@ -3,7 +3,7 @@ import socket
 
 import tcp.decoder as decoder
 
-packet_size = (2+40)*4
+packet_size = (2+37)*4
 
 # where first 2 are rev + term , other are obs
 

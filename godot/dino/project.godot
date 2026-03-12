@@ -33,13 +33,9 @@ window/vsync/vsync_mode=0
 [physics]
 
 2d/run_on_separate_thread=true
-3d/run_on_separate_thread=true
-common/physics_ticks_per_second=120
-2d/physics_engine="GodotPhysics2D"
 3d/physics_engine="Jolt Physics"
-3d/default_linear_damp=0.3
-3d/default_angular_damp=0.3
-3d/solver/default_contact_bias=0.0
+jolt_physics_3d/simulation/velocity_steps=20
+jolt_physics_3d/simulation/position_steps=6
 
 [rendering]
 

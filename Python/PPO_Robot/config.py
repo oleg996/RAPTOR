@@ -5,18 +5,18 @@ class Config:
     ENV_NAME = "Humanoid-v5"
 
     # Training parameters
-    MAX_EPISODES = 30000
+    MAX_EPISODES = 50000
     MAX_TIMESTEPS = 2048
     LOG_INTERVAL = 10
     BATCH_SIZE = 2048
     REWARD_SCALE = 1
 
-    NORM_WARM_UP = 50
+    NORM_WARM_UP = 1
 
-    # SAC hyperparameters
-    LEARNING_RATE_ACTOR = 3e-5
+    # SAC hyperparameters drop when training a robot!!
+    LEARNING_RATE_ACTOR = 3e-4
     LEARNING_RATE_CRITIC = 3e-4
-    LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
+    LEARNING_RATE_ALPHA = 2e-4  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.99 
     TAU = 0.01
 
@@ -29,17 +29,18 @@ class Config:
 
     # Entropy tuning
     AUTO_ENTROPY_TUNING = True
-    INIT_ALPHA = 0.05
+    INIT_ALPHA = 0.1
 
     ACTION_BOUND = 1.0
 
     # Model parameters
     HIDDEN_UNITS = [256, 256,256]
+    Q_HIDDEN_UNITS = [512, 512,512]
     DEVICE = "cuda"
 
     # Save/Load paths
     MODEL_DIR = "models"
-    MODEL_NAME = "test.pth"
+    MODEL_NAME = "last.pth"
     TENSORBOARD_LOG_DIR = "runs"
     LOAD_MODEL = False
     BACKUP_DIR = "./models/backups"

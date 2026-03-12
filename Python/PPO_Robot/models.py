@@ -2,81 +2,53 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
-import numpy as np
+import math
 
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2
 
-
-class MLP(nn.Module):
-    """Shared MLP builder for all networks."""
-
-    def __init__(self, input_dim, hidden_units, output_dim,
-                 output_activation=None, use_layernorm=False):
-        super(MLP, self).__init__()
-
-        layers = []
-        prev_dim = input_dim
-
-        for hidden_dim in hidden_units:
-            layers.append(nn.Linear(prev_dim, hidden_dim))
-            if use_layernorm:
-                layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(nn.LeakyReLU())
-            prev_dim = hidden_dim
-
-        # Output layer
-        final_layer = nn.Linear(prev_dim, output_dim)
-        # Small init for output layer to start near zero
-        nn.init.uniform_(final_layer.weight, -3e-3, 3e-3)
-        nn.init.uniform_(final_layer.bias, -3e-3, 3e-3)
-        layers.append(final_layer)
-
-        if output_activation is not None:
-            layers.append(output_activation)
-
-        self.net = nn.Sequential(*layers)
+class ResidualBlock(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.LayerNorm(dim),
+            nn.SiLU(),
+            nn.Linear(dim, dim),
+            nn.LayerNorm(dim),
+        )
+        self.activation = nn.SiLU()
 
     def forward(self, x):
-        return self.net(x)
-
+        return self.activation(x + self.block(x))
 
 class GaussianActor(nn.Module):
-    """
-    Stochastic actor using Gaussian distribution.
-    Outputs mean and log_std, uses reparameterization trick.
-    """
-
-    def __init__(self, state_dim, action_dim, hidden_units, action_bound=1.0):
+    def __init__(self, state_dim, action_dim, hidden_units=(256, 256), action_bound=1.0):
         super(GaussianActor, self).__init__()
 
         self.action_bound = action_bound
 
-        self.log_std = torch.tensor([0])
-
-        # Shared trunk — full hidden layers
-        trunk_layers = []
-        prev_dim = state_dim
+        # FIX 1: Add initial projection layer to match ResidualBlock dimensions
+        trunk_layers = [
+            nn.Linear(state_dim, hidden_units[0]),
+            nn.LayerNorm(hidden_units[0]),
+            nn.SiLU()
+        ]
+        
         for hidden_dim in hidden_units:
-            trunk_layers.extend([
-                nn.Linear(prev_dim, hidden_dim),
-                nn.LeakyReLU(),
-            ])
-            prev_dim = hidden_dim
+            trunk_layers.append(ResidualBlock(hidden_dim))
+            
         self.trunk = nn.Sequential(*trunk_layers)
 
-        # Separate heads for mean and log_std
         self.mean_head = nn.Linear(hidden_units[-1], action_dim)
         self.log_std_head = nn.Linear(hidden_units[-1], action_dim)
 
-        # Initialize output layers with small weights
         nn.init.uniform_(self.mean_head.weight, -3e-3, 3e-3)
         nn.init.uniform_(self.mean_head.bias, -3e-3, 3e-3)
         nn.init.uniform_(self.log_std_head.weight, -3e-3, 3e-3)
         nn.init.uniform_(self.log_std_head.bias, -3e-3, 3e-3)
 
     def forward(self, state):
-        """Get action distribution parameters."""
         features = self.trunk(state)
         mean = self.mean_head(features)
         log_std = self.log_std_head(features)
@@ -88,24 +60,29 @@ class GaussianActor(nn.Module):
         std = log_std.exp()
         normal = Normal(mean, std)
         x_t = normal.rsample()
+        
         action = torch.tanh(x_t) * self.action_bound
         
+        # Enforce Tanh bound
         log_prob = normal.log_prob(x_t) - 2.0 * (
-        np.log(2.0) - x_t - F.softplus(-2.0 * x_t)
+            math.log(2.0) - x_t - F.softplus(-2.0 * x_t)
         )
-        log_prob = log_prob.sum(1, keepdim=True)
         
+        # FIX 2: sum(-1) instead of sum(1) for batch flexibility
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+        
+        # FIX 3: Account for action_bound in the log_prob math
+        if self.action_bound != 1.0:
+            log_prob -= math.log(self.action_bound) * action.shape[-1]
+            
         return action, log_prob
 
     def get_action(self, state, deterministic=False):
-        """Get action for environment interaction."""
+        # FIX 4: Removed stateful self.log_std
         mean, log_std = self.forward(state)
-
-        self.log_std = log_std
 
         if deterministic:
             return torch.tanh(mean) * self.action_bound
-            
         else:
             std = log_std.exp()
             normal = Normal(mean, std)
@@ -113,34 +90,46 @@ class GaussianActor(nn.Module):
             return torch.tanh(x_t) * self.action_bound
 
 
-class QNetwork(nn.Module):
-    """
-    Q-network for SAC.
-    """
+class SACCritic(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_units=(256, 256)):
+        super().__init__()
 
-    def __init__(self, state_dim, action_dim, hidden_units):
-        super(QNetwork, self).__init__()
+        # Process state
+        self.state_layer = nn.Linear(state_dim, hidden_units[0])
+        self.state_ln = nn.LayerNorm(hidden_units[0])
 
-        self.q0 = MLP(state_dim + action_dim, hidden_units, 1,use_layernorm=True)
-    
+        # Merge action after first layer (Late Fusion)
+        trunk_layers = []
+        prev_dim = hidden_units[0] + action_dim
+        
+        # FIX 5: Standardized to use ResidualBlocks to match Actor power
+        trunk_layers.extend([
+            nn.Linear(prev_dim, hidden_units[1]),
+            nn.LayerNorm(hidden_units[1]),
+            nn.SiLU()
+        ])
+        
+        for hidden_dim in hidden_units[1:]:
+            trunk_layers.append(ResidualBlock(hidden_dim))
+
+        self.trunk = nn.Sequential(*trunk_layers)
+        self.output = nn.Linear(hidden_units[-1], 1)
+
+        nn.init.orthogonal_(self.output.weight, gain=1.0)
+        nn.init.constant_(self.output.bias, 0.0)
 
     def forward(self, state, action):
-        sa = torch.cat([state, action], dim=-1)
-        return self.q0(sa)
+        s = self.state_ln(F.silu(self.state_layer(state)))
+        x = torch.cat([s, action], dim=-1)
+        x = self.trunk(x)
+        return self.output(x)
 
 
 class TwinQNetwork(nn.Module):
-    """
-    Twin Q-network for SAC.
-    """
-
-    def __init__(self, state_dim, action_dim, hidden_units):
+    def __init__(self, state_dim, action_dim, hidden_units=(256, 256)):
         super(TwinQNetwork, self).__init__()
-
-        self.q1 = QNetwork(state_dim=state_dim,action_dim=action_dim,hidden_units=hidden_units)
-
-        self.q2 = QNetwork(state_dim=state_dim,action_dim=action_dim,hidden_units=hidden_units)
-    
+        self.q1 = SACCritic(state_dim, action_dim, hidden_units)
+        self.q2 = SACCritic(state_dim, action_dim, hidden_units)
 
     def forward(self, state, action):
-        return self.q1(state,action) ,self.q2(state,action) 
+        return self.q1(state, action), self.q2(state, action)

@@ -5,7 +5,7 @@ import numpy as np
 from copy import deepcopy
 
 from optim.lion import Lion
-from models import GaussianActor, QNetwork,TwinQNetwork
+from models import GaussianActor,TwinQNetwork
 from replay_buffer import ReplayBuffer
 
 from untils import update_params
@@ -28,7 +28,7 @@ class SACAgent:
         ).to(device)
 
         # Critic networks (two Q-networks)
-        self.critic = TwinQNetwork(state_dim, action_dim, config.HIDDEN_UNITS).to(device)
+        self.critic = TwinQNetwork(state_dim, action_dim, config.Q_HIDDEN_UNITS).to(device)
 
         # Target critic (for stable Q-value estimation)
         self.critic_target = deepcopy(self.critic)
@@ -38,7 +38,7 @@ class SACAgent:
             param.requires_grad = False
 
         # Optimizers
-        self.actor_optimizer = Lion(
+        self.actor_optimizer = optim.AdamW(
             self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR
         )
         self.q1_optimizer = optim.AdamW(
