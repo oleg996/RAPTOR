@@ -17,35 +17,74 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="New Game Project"
 run/main_scene="uid://cfbuhj0b4lyox"
 config/features=PackedStringArray("4.6", "Forward Plus")
+run/low_processor_mode_sleep_usec=0
 config/icon="res://icon.svg"
 
 [autoload]
 
 TcpApi="*res://TCP_api.gd"
 
+[debug]
+
+settings/stdout/print_fps=true
+
 [display]
 
 window/size/viewport_width=648
-window/size/always_on_top=true
-window/size/no_focus=true
+window/frame_pacing/android/enable_frame_pacing=false
+window/frame_pacing/android/swappy_mode=0
+window/dpi/allow_hidpi=false
 window/vsync/vsync_mode=0
+window/ios/allow_high_refresh_rate=false
+window/ios/hide_home_indicator=false
+window/ios/hide_status_bar=false
+
+[input]
+
+forw={
+"deadzone": 0.2,
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":-1,"axis":1,"axis_value":-1.0,"script":null)
+]
+}
+back={
+"deadzone": 0.2,
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":-1,"axis":1,"axis_value":1.0,"script":null)
+]
+}
+left={
+"deadzone": 0.2,
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":-1,"axis":0,"axis_value":-1.0,"script":null)
+]
+}
+right={
+"deadzone": 0.2,
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":-1,"axis":0,"axis_value":1.0,"script":null)
+]
+}
 
 [physics]
 
 2d/run_on_separate_thread=true
+3d/run_on_separate_thread=true
 3d/physics_engine="Jolt Physics"
 jolt_physics_3d/simulation/velocity_steps=20
-jolt_physics_3d/simulation/position_steps=6
+jolt_physics_3d/simulation/position_steps=4
 
 [rendering]
 
+occlusion_culling/bvh_build_quality=0
+textures/canvas_textures/default_texture_filter=0
+driver/threads/thread_model=2
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
 lights_and_shadows/positional_shadow/soft_shadow_filter_quality=0
 reflections/specular_occlusion/enabled=false
 textures/default_filters/anisotropic_filtering_level=0
 camera/depth_of_field/depth_of_field_bokeh_shape=0
+camera/depth_of_field/depth_of_field_bokeh_quality=0
 environment/ssao/quality=0
 environment/ssil/quality=0
+textures/decals/filter=0
+textures/light_projectors/filter=0
 environment/glow/upscale_mode=0
 environment/subsurface_scattering/subsurface_scattering_quality=0
 global_illumination/sdfgi/frames_to_converge=0

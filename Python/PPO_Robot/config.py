@@ -16,7 +16,7 @@ class Config:
     # SAC hyperparameters drop when training a robot!!
     LEARNING_RATE_ACTOR = 1e-4
     LEARNING_RATE_CRITIC = 1e-4
-    LEARNING_RATE_ALPHA = 8e-5  # ← Slower alpha learning prevents entropy collapse
+    LEARNING_RATE_ALPHA = 3e-5  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.99 
     TAU = 0.01
 
@@ -37,10 +37,9 @@ class Config:
     HIDDEN_UNITS = [256, 256,256]
     Q_HIDDEN_UNITS = [512, 512,512]
     DEVICE = "cuda"
-
     # Save/Load paths
     MODEL_DIR = "models"
-    MODEL_NAME = "spoder.pth"
+    MODEL_NAME = "RC.pth"
     TENSORBOARD_LOG_DIR = "runs"
     LOAD_MODEL = False
     BACKUP_DIR = "./models/backups"

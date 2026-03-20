@@ -317,5 +317,15 @@ class SACAgent:
         self.q2_optimizer.load_state_dict(checkpoint['q2_optimizer'])
 
 
-        self.log_alpha = checkpoint['log_alpha']
+        self.log_alpha.data.copy_(checkpoint['log_alpha'].data)
         self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
+
+
+        for param_group in self.actor_optimizer.param_groups:
+            param_group['lr'] = self.config.LEARNING_RATE_ACTOR
+        for param_group in self.q1_optimizer.param_groups:
+            param_group['lr'] = self.config.LEARNING_RATE_CRITIC
+        for param_group in self.q2_optimizer.param_groups:
+            param_group['lr'] = self.config.LEARNING_RATE_CRITIC
+        for param_group in self.alpha_optimizer.param_groups:
+            param_group['lr'] = self.config.LEARNING_RATE_ALPHA

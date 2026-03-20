@@ -3,12 +3,14 @@ extends Joint3D
 @export var max_tor = 1;
 
 
-var pow = 1
+var pow = 0.9 
 
-var max_vel = 7
+var max_vel = 10
 
 var first_obg : RigidBody3D
 var second_obg : RigidBody3D
+
+var zero = 0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -16,16 +18,16 @@ func _ready() -> void:
 	
 	second_obg = get_node(node_b) as RigidBody3D
 	
-	max_tor = max_tor
+	max_tor = max_tor*1.5
 
-
+	zero = get_angle()
 
 func _physics_process(delta: float) -> void:
 	pow = clamp(pow,-1,1)
 
-	#var target_pow = pow*max_tor+get_vel()*max_tor/16
-	
-	var power_tor = pow * max_tor
+	var err =(pow- get_norm_ang())*10
+	err = clamp(err,-1,1)
+	var power_tor = err* max_tor
 	
 	var emf = (get_vel()/max_vel)*max_tor
 	var target_pow = power_tor + emf
@@ -35,11 +37,21 @@ func _physics_process(delta: float) -> void:
 	first_obg.apply_torque(axis * -1 * target_pow)
 	
 func get_angle():
-	var rot1 = first_obg.rotation.z
 	
-	var rot2 = second_obg.rotation.z
+	var vec1 = first_obg.global_basis.x
+	
+	var vec2 = second_obg.global_basis.x
+	
+	var dir = second_obg.global_basis.z
+	
+	var ang = vec1.signed_angle_to(vec2,dir)-zero
+	
 
-	return  rot1 - rot2
+	return ang 
+	
+func get_norm_ang():
+	return get_angle() /get("angular_limit/upper")
+	
 func get_vel():
 	
 	
@@ -60,5 +72,5 @@ func get_accel():
 	return acc
 func  _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.is_pressed():
-		pow = -pow
+		#pow = -pow
 		pass

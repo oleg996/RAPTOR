@@ -30,7 +30,7 @@ class Tpc_env():
         obs = recived[2:]
 
         self.time += 1
-        return numpy.array(obs),revard,term,self.time > 500,None
+        return numpy.array(obs),revard,term,self.time > 1000,None
 
     def reset (self):
         data = [-1] + ([0]*8)

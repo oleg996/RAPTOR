@@ -35,3 +35,8 @@ func calc_in(size,mass):
 	var Iz = (1/12.) * mass * (w**2 + h**2)
 
 	return Vector3(Ix, Iy, Iz)
+
+func  _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.is_pressed():
+		#apply_impulse(Vector3(randf_range(-1,1),randf_range(-1,1),randf_range(-1,1))*10)
+		pass

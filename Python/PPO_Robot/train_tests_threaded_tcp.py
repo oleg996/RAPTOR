@@ -58,7 +58,7 @@ def main():
 
     buffer_lock = threading.Lock()
 
-    trainThread = threading.Thread(target=train,args=(agent,config,norm,metricsQue,agent_live,buffer_lock))
+    trainThread = threading.Thread(target=train,args=(agent,config,norm,metricsQue,agent_live,buffer_lock),daemon=True)
 
 
 
@@ -80,6 +80,7 @@ def main():
                 norm.mean = checkpoint['obs_mean']
                 norm.var = checkpoint['obs_var']
                 norm.n = checkpoint['obs_count']
+            agent_live.actor.load_state_dict(agent.actor.state_dict())
             print("Model loaded successfully.")
 
     print(f"Warming up the normalizer for {config.NORM_WARM_UP}")
@@ -181,7 +182,6 @@ def main():
                 f"Buf: {len(agent.replay_buffer):7d} | "
                 f"α: {agent.log_alpha.exp().item():.4f} | "
                 f"Steps: {total_timesteps} |"
-                f"Last std {agent.actor.log_std.exp().mean().item():.4f}"
             )
 
             writer.add_scalar("reward/avg_reward", avg_reward, episode)
