@@ -3,7 +3,7 @@ extends Joint3D
 @export var max_tor = 1;
 
 
-var pow = 0.9 
+var pow = 0
 
 var max_vel = 10
 
@@ -11,6 +11,9 @@ var first_obg : RigidBody3D
 var second_obg : RigidBody3D
 
 var zero = 0
+
+
+var last_pow = 0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -28,7 +31,7 @@ func _physics_process(delta: float) -> void:
 	var err =(pow- get_norm_ang())*10
 	err = clamp(err,-1,1)
 	var power_tor = err* max_tor
-	
+	last_pow = err
 	var emf = (get_vel()/max_vel)*max_tor
 	var target_pow = power_tor + emf
 	
@@ -65,12 +68,5 @@ func get_vel():
 
 var prev_vel = 0
 
-func get_accel():
-	var cur_vel = get_vel()
-	var acc = cur_vel -prev_vel	
-	prev_vel = cur_vel
-	return acc
-func  _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.is_pressed():
-		#pow = -pow
-		pass
+func get_pow():
+	return abs(last_pow)

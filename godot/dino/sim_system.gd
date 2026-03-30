@@ -16,6 +16,8 @@ var speed_Factor = 1
 var pad_x = 0
 var pad_y = 0
 
+var lv = [0,0]
+
 var sim_time =0
 
 var sigma = 1
@@ -158,6 +160,7 @@ func perform_observarions():
 	#obss.append($dino/body.global_transform.basis.x.z)
 	
 	var inp = keyboard()
+	inp = smooth(inp)
 	obss.append(inp[0])
 	obss.append(inp[1])
 	print(inp)
@@ -165,9 +168,7 @@ func perform_observarions():
 	
 func calculate_revard():
 	
-	var en_pen = pow($dino/body_bleg1.pow ,2) + pow($dino/bleg1/bleg1_bleg2.pow ,2) + pow($dino/bleg2/bleg2_bleg3.pow ,2)
-	en_pen += 	pow($dino/body_fleg1.pow,2) + pow($dino/fleg1/fleg1_fleg2.pow,2) + pow($dino/fleg2/fleg2_fleg3.pow,2)
-	en_pen += 	pow($dino/body_tail1.pow,2) + pow($dino/body_neck1.pow,2)
+	var en_pen = power_pen()
 	
 	var up_rew = $dino/body.global_transform.basis.y.y
 	
@@ -185,7 +186,11 @@ func reset():
 		p.reset()
 	reset_frame = true
 	
-	
+func power_pen():
+	var en_pen = $dino/body_bleg1.get_pow() + $dino/bleg1/bleg1_bleg2.get_pow() + $dino/bleg2/bleg2_bleg3.get_pow()
+	en_pen += 	$dino/body_fleg1.get_pow() + $dino/fleg1/fleg1_fleg2.get_pow() + $dino/fleg2/fleg2_fleg3.get_pow()
+	en_pen += 	$dino/body_tail1.get_pow() + $dino/body_neck1.get_pow()
+	return en_pen	
 
 
 func is_colides():
@@ -198,7 +203,7 @@ func is_terminal():
 	var z_end = $dino/body.position.y < 0.20
 	
 	
-	return z_end
+	return false
 	
 func add_angle(arr, angle):
 	arr.append(cos(angle))
@@ -235,12 +240,15 @@ func process_for_nn():
 	
 	return [angl_err,angl[0]]
 	
-	
+func smooth(inv):
+	lv[0] = lv[0]*0.9 + inv[0]*0.1
+	lv[1] = lv[1]*0.9 + inv[1]*0.1
+	return lv
 func keyboard():
 	var out = [0.0,0.0]
 	out[1] = clamp(Input.get_axis("back","forw"),0,1)
 	
-	out[0] = clamp(Input.get_axis("left","right"),-1,1)*0.5
+	out[0] = clamp(Input.get_axis("right","left"),-1,1)*0.5
 	
 	return out
 func calc_reward_for_walk():

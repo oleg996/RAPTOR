@@ -90,10 +90,12 @@ visible = false
 modulate = Color(0.1467042, 0.1467042, 0.1467042, 1)
 texture = ExtResource("1_sk41h")
 
-[node name="Camera3D" type="Camera3D" parent="." unique_id=745122838]
-transform = Transform3D(0.9997883, 0.010449299, -0.017725267, -0.005325453, 0.96350926, 0.26762202, 0.01987492, -0.26747096, 0.96336097, -0.2937169, 0.89155376, 1.5034194)
+[node name="Camera3D" type="Node3D" parent="." unique_id=682363552]
 script = ExtResource("5_tvsrp")
 track = NodePath("../dino/body")
+
+[node name="Camera3D" type="Camera3D" parent="Camera3D" unique_id=576365125]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -2, 0, 0)
 
 [node name="dino" type="Node3D" parent="." unique_id=854822169]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.098, 0.29602075, 0.507)
