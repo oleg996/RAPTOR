@@ -13,6 +13,7 @@ from sac_agent import SACAgent
 import inputNorm
 from torch.utils.tensorboard import SummaryWriter
 
+from historyWrapper import HistoryWrapper
 
 
 import tcp.Tcp_env
@@ -37,12 +38,20 @@ def main():
     device = torch.device(config.DEVICE)
     print(f"Using device: {device}")
 
-    env = tcp.Tcp_env.Tpc_env()
-    env.connect()
+    base_env = tcp.Tcp_env.Tpc_env()
+    base_env.connect()
     state_dim = 37  
     action_dim = 8
 
+
+    base_state_dim = 37  
+    action_dim = 8
+    history_length = 3 # Try 3 to 5 for walking robots
     
+
+    env = HistoryWrapper(base_env, base_state_dim, action_dim, history_len=history_length)
+
+    state_dim = env.new_state_dim 
 
 
     agent = SACAgent(state_dim, action_dim, config, device)

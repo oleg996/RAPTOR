@@ -13,12 +13,12 @@ class Config:
 
     NORM_WARM_UP = 1
 
-    # SAC hyperparameters drop when training a robot!!
-    LEARNING_RATE_ACTOR = 1e-4
-    LEARNING_RATE_CRITIC = 1e-4
-    LEARNING_RATE_ALPHA = 3e-5  # ← Slower alpha learning prevents entropy collapse
+    # SAC hyperparameters
+    LEARNING_RATE_ACTOR = 1e-3
+    LEARNING_RATE_CRITIC = 1e-3
+    LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
     GAMMA = 0.99 
-    TAU = 0.01
+    TAU = 0.005
 
     # Replay buffer
     BUFFER_SIZE = 1000000
