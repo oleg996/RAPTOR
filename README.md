@@ -1,1 +1,1 @@
-## Evaluation of unconventional body configu **ra**tions in legged robots: **p**rojec*t* ,design , evaluati*o*n and expe*r*iments.	
+## Evaluation of unconventional body configu**RA**tions in legged robots: **P**rojec*T* ,design , evaluati*O*n and expe*R*iments.	
