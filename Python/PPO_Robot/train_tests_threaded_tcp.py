@@ -83,7 +83,7 @@ def main():
     if config.LOAD_MODEL:
         checkpoint_path = os.path.join(config.MODEL_DIR, config.MODEL_NAME)
         if os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path, map_location=device)
+            checkpoint = torch.load(checkpoint_path, map_location=device,weights_only=False)
             agent.load(checkpoint_path)
             if 'obs_mean' in checkpoint:
                 norm.mean = checkpoint['obs_mean']
@@ -119,7 +119,7 @@ def main():
     print(f"State dim: {state_dim}, Action dim: {action_dim}")
     print(f"Buffer will start training after {config.MIN_BUFFER_SIZE} steps")
 
-    
+    agent_live.actor.load_state_dict(agent.actor.state_dict())
 
     for episode in range(1, config.MAX_EPISODES + 1):
         state, _ = env.reset()

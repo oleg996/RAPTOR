@@ -6,6 +6,7 @@ import os
 import tcp.Tcp_env
 import inputNorm
 
+from historyWrapper import HistoryWrapper
 
 def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True):
     """Evaluate a trained SAC model."""
@@ -13,10 +14,16 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     device = torch.device(config.DEVICE)
 
     # Initialize environment
-    env = tcp.Tcp_env.Tpc_env()
-    env.connect()
-    state_dim = 37 
+    base_env = tcp.Tcp_env.Tpc_env()
+    base_env.connect()
+    base_state_dim = 37  
     action_dim = 8
+    history_length = 3 # Try 3 to 5 for walking robots
+    
+
+    env = HistoryWrapper(base_env, base_state_dim, action_dim, history_len=history_length)
+
+    state_dim = env.new_state_dim 
 
     # Initialize SAC agent
     agent = SACAgent(state_dim, action_dim, config, device)

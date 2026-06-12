@@ -31,6 +31,7 @@ settings/stdout/print_fps=true
 [display]
 
 window/size/viewport_width=648
+window/size/always_on_top=true
 window/frame_pacing/android/enable_frame_pacing=false
 window/frame_pacing/android/swappy_mode=0
 window/dpi/allow_hidpi=false

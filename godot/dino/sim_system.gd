@@ -35,18 +35,25 @@ func _ready() -> void:
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
 	
+	#if randf()>0.99 :
+				#$dino/body.apply_forse()
+				
+	if Input.is_action_pressed("ui_up") :
+		$dino/body.apply_impulse(Vector3.FORWARD*3)
+		print("Aa")
 	
 	if not TcpApi.debug:
 		if reset_frame:
 			await get_tree().process_frame
-			#set_rand_dir()
+			set_rand_dir()
+			lv = [0,0]
 			reset_frame = false
 		else:
 			tick()
 			sim_time += 1
-			if sim_time > 500:
+			if sim_time > 250:
 				sim_time = 0
-				#set_rand_dir()
+				set_rand_dir()
 func tick():
 	TcpApi.recive()
 	
@@ -69,7 +76,7 @@ func tick():
 	var data = [rev,0]
 	if is_terminal():
 		data[1] = -1
-		#data[0] = -200
+		data[0] = -10
 	
 	data.append_array(obs) 
 	
@@ -159,11 +166,17 @@ func perform_observarions():
 	
 	#obss.append($dino/body.global_transform.basis.x.z)
 	
+	#var sm_pad = smooth([pad_x,pad_y])
+	#print(sm_pad)
+	
+	#var inp = process_for_nn(calc_values(sm_pad))
+	
 	var inp = keyboard()
-	inp = smooth(inp)
+	
+	
 	obss.append(inp[0])
 	obss.append(inp[1])
-	print(inp)
+	
 	return obss
 	
 func calculate_revard():
@@ -172,13 +185,15 @@ func calculate_revard():
 	
 	var up_rew = $dino/body.global_transform.basis.y.y
 	
-	#var mov = $dino/body.linear_velocity.x - abs($dino/body.linear_velocity.z)
 	
 	var mov = calc_reward_for_walk()
 	
 	var col = 1 if is_colides() else 0
 	
-	var rev = mov+up_rew - en_pen * 0.0 - col                                           
+	
+	var up = clamp($dino/body.position.y,0,0.5)
+	
+	var rev = mov+up_rew*0.2 + up - en_pen * 0.05 - col*1                                           
 	return rev
 	
 func reset():
@@ -200,7 +215,7 @@ func is_colides():
 	
 	return end
 func is_terminal():
-	var z_end = $dino/body.position.y < 0.20
+	var z_end = $dino/body.position.y < 0.10
 	
 	
 	return false
@@ -217,24 +232,19 @@ func  _physics_process(delta: float) -> void:
 func FPS_TIMER() -> void:
 	print("FPS:",Engine.get_frames_per_second())
 	print("FTPS:",1/ldelta * speed_Factor)
-	
-func  _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.is_pressed():
-		#reset()
-		#print(perform_observarions())	
-		pass
+
 		
-func calc_values():
-	if pad_x == 0 and pad_y == 0:
+func calc_values(pad):
+	if pad[0] == 0 and pad[1] == 0:
 		return [0,0]
 	else :
-		var angl = atan2(pad_x,pad_y)
-		var vel = sqrt(pow(pad_x,2)+pow(pad_y,2))
+		var angl = atan2(pad[0],pad[1])
+		var vel = sqrt(pow(pad[0],2)+pow(pad[1],2))
 		
 		return [vel,angl]
 		
-func process_for_nn():
-	var angl = calc_values()
+func process_for_nn(angl):
+	
 	
 	var angl_err = angl[1]-$dino/body.global_rotation.y
 	
@@ -248,12 +258,12 @@ func keyboard():
 	var out = [0.0,0.0]
 	out[1] = clamp(Input.get_axis("back","forw"),0,1)
 	
-	out[0] = clamp(Input.get_axis("right","left"),-1,1)*0.5
+	out[0] = clamp(Input.get_axis("right","left"),-1,1)/1
 	
 	return out
 func calc_reward_for_walk():
 	
-	var targ = calc_values()
+	var targ = calc_values(lv)
 	
 	var lvel = $dino/body.linear_velocity * $dino/body.global_basis
 	
@@ -261,17 +271,19 @@ func calc_reward_for_walk():
 	
 	var vele = lvel.x-targ[0]*3
 	
-	var rew_hea = exp(-(pow(vele,2))/4)
-	
-	var rew_angl = exp(-(pow(angle,2))/2)
+	var rew_hea = exp(-(pow(vele,2))/1)
+	if targ[0] != 0:
+		rew_hea = exp(-(pow(vele,2))/4)
+		
+	var rew_angl = exp(-(pow(angle,2))/1)
 
-	return rew_angl + rew_hea
+	return rew_angl *0.5 + rew_hea*2
 	
 func set_rand_dir():
 	if randf() > 0.5:
 		pad_x =0
 		pad_y =0
 	else:
-		pad_x =0#randf_range(-1,1)
-		pad_y =0    #randf_range(-1,1)
+		pad_x =randf_range(-1,1)
+		pad_y =randf_range(-1,1)
 	print("set pad to",pad_x,"|",pad_y)

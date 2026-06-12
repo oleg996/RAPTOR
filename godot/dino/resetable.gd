@@ -3,7 +3,7 @@ var pre_tr = null
 
 var to_reset = false
 
-var random_vel = 0
+var random_vel = 1
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -21,8 +21,6 @@ func _process(delta: float) -> void:
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:	
 	if to_reset:
 		state.transform = pre_tr
-		state.linear_velocity = random_vel * Vector3(randf_range(-1,1),randf_range(-1,1),randf_range(-1,1))
-		state.angular_velocity = random_vel * Vector3(randf_range(-1,1),randf_range(-1,1),randf_range(-1,1))
 		to_reset = false
 		
 func calc_in(size,mass):
@@ -35,6 +33,10 @@ func calc_in(size,mass):
 	var Iz = (1/12.) * mass * (w**2 + h**2)
 
 	return Vector3(Ix, Iy, Iz)
+
+func  apply_forse():
+	apply_impulse(Vector3(randf_range(-1,1),randf_range(-1,1),randf_range(-1,1))*50)
+	print("boom")
 
 func  _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.is_pressed():

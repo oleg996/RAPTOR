@@ -13,7 +13,7 @@ class HistoryWrapper:
         self.action_history = deque(maxlen=history_len)
         
         # Calculate new state dimension: current obs + past obs + past actions
-        self.new_state_dim = (obs_dim * history_len) + (action_dim * (history_len - 1))
+        self.new_state_dim = (obs_dim * history_len) + (action_dim * (history_len))
 
     def reset(self):
         obs, info = self.env.reset()
@@ -22,7 +22,7 @@ class HistoryWrapper:
         for _ in range(self.history_len):
             self.obs_history.append(obs)
             
-        for _ in range(self.history_len - 1):
+        for _ in range(self.history_len):
             self.action_history.append(np.zeros(self.action_dim))
             
         return self._get_stacked_state(), info

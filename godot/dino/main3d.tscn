@@ -28,7 +28,9 @@ size = Vector3(0.3, 0.1, 0.1)
 size = Vector3(0.29919434, 0.08959961, 0.10546875)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_tvsrp"]
+friction = 0.99
 rough = true
+bounce = 0.01
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_jmf5q"]
 radius = 0.052246094
@@ -91,6 +93,7 @@ modulate = Color(0.1467042, 0.1467042, 0.1467042, 1)
 texture = ExtResource("1_sk41h")
 
 [node name="Camera3D" type="Node3D" parent="." unique_id=682363552]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 0, 0)
 script = ExtResource("5_tvsrp")
 track = NodePath("../dino/body")
 
@@ -124,7 +127,7 @@ angular_limit/enable = true
 angular_limit/upper = 1.0471976
 angular_limit/lower = -1.0471976
 script = ExtResource("2_fxs24")
-max_tor = 100
+max_tor = 50
 
 [node name="body_neck1" type="HingeJoint3D" parent="dino" unique_id=238451075]
 transform = Transform3D(-0.6484388, 0.76126665, 0, -0.7612667, -0.64843875, 0, 0, 0, 0.99999994, 0.34036064, 0.7904369, -0.002266705)
@@ -134,13 +137,13 @@ angular_limit/enable = true
 angular_limit/upper = 0.87266463
 angular_limit/lower = -0.87266463
 script = ExtResource("2_fxs24")
-max_tor = 40
+max_tor = 50
 
 [node name="body" type="RigidBody3D" parent="dino" unique_id=1046902511]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024869919, 0.6542902, 0)
 rotation_order = 4
 collision_mask = 2
-mass = 15.0
+mass = 20.0
 continuous_cd = true
 contact_monitor = true
 max_contacts_reported = 1
@@ -159,7 +162,7 @@ mesh = SubResource("BoxMesh_j8wvp")
 [node name="bleg1" type="RigidBody3D" parent="dino" unique_id=77648865]
 transform = Transform3D(0.57620406, 0.8173058, 0, -0.81730586, 0.5762041, 0, 0, 0, 0.99999994, -0.18036994, 0.49948397, 0.14916861)
 collision_mask = 2
-mass = 5.0
+mass = 10.0
 continuous_cd = true
 contact_monitor = true
 max_contacts_reported = 1
@@ -187,7 +190,7 @@ max_tor = 60
 [node name="bleg2" type="RigidBody3D" parent="dino" unique_id=341812014]
 transform = Transform3D(-0.84879625, 0.5287196, 0, -0.5287197, -0.84879637, 0, 0, 0, 0.9999999, -0.32456294, 0.28577995, 0.14916855)
 collision_mask = 2
-mass = 3.0
+mass = 5.0
 continuous_cd = true
 contact_monitor = true
 max_contacts_reported = 1
@@ -207,15 +210,15 @@ transform = Transform3D(-0.8487965, -0.5287197, 0, 0.5287197, -0.84879655, 0, 0,
 node_a = NodePath("..")
 node_b = NodePath("../../bleg3")
 angular_limit/enable = true
-angular_limit/upper = 1.0471976
-angular_limit/lower = -1.0471976
+angular_limit/upper = 0.5235988
+angular_limit/lower = -0.5235988
 script = ExtResource("2_fxs24")
 max_tor = 30
 
 [node name="bleg3" type="RigidBody3D" parent="dino" unique_id=1998613928]
 transform = Transform3D(-0.07396912, -0.9972604, 0, 0.9972606, -0.073969185, 0, 0, 0, 0.9999998, -0.41212374, 0.2080451, 0.14916855)
 collision_mask = 2
-mass = 2.0
+mass = 3.0
 physics_material_override = SubResource("PhysicsMaterial_tvsrp")
 continuous_cd = true
 contact_monitor = true
@@ -234,7 +237,7 @@ mesh = SubResource("BoxMesh_ih0mi")
 [node name="fleg1" type="RigidBody3D" parent="dino" unique_id=2082140869]
 transform = Transform3D(0.57620406, 0.8173058, 0, -0.81730586, 0.5762041, 0, 0, 0, 0.99999994, -0.18036994, 0.49948397, -0.14899999)
 collision_mask = 2
-mass = 5.0
+mass = 10.0
 continuous_cd = true
 contact_monitor = true
 max_contacts_reported = 1
@@ -262,7 +265,7 @@ max_tor = 60
 [node name="fleg2" type="RigidBody3D" parent="dino" unique_id=1088751326]
 transform = Transform3D(-0.8487962, 0.52871954, 0, -0.5287197, -0.84879637, 0, 0, 0, 0.9999998, -0.3245629, 0.28577995, -0.14899996)
 collision_mask = 2
-mass = 3.0
+mass = 5.0
 continuous_cd = true
 contact_monitor = true
 max_contacts_reported = 1
@@ -282,15 +285,15 @@ transform = Transform3D(-0.84879625, -0.5287198, 0, 0.5287196, -0.84879637, 0, 0
 node_a = NodePath("..")
 node_b = NodePath("../../fleg3")
 angular_limit/enable = true
-angular_limit/upper = 1.0471976
-angular_limit/lower = -1.0471976
+angular_limit/upper = 0.5235988
+angular_limit/lower = -0.5235988
 script = ExtResource("2_fxs24")
 max_tor = 30
 
 [node name="fleg3" type="RigidBody3D" parent="dino" unique_id=1379658823]
 transform = Transform3D(-0.07396908, -0.9972602, 0, 0.9972606, -0.073969185, 0, 0, 0, 0.9999997, -0.41212374, 0.2080451, -0.14899993)
 collision_mask = 2
-mass = 2.0
+mass = 3.0
 physics_material_override = SubResource("PhysicsMaterial_tvsrp")
 continuous_cd = true
 contact_monitor = true
@@ -309,7 +312,7 @@ mesh = SubResource("BoxMesh_ih0mi")
 [node name="tail1" type="RigidBody3D" parent="dino" unique_id=1559173687]
 transform = Transform3D(1, 0, 0, 0, -4.3711385e-08, -0.9999999, 0, 0.99999994, -4.3711385e-08, -0.4869495, 0.6361534, -0.0019176006)
 collision_mask = 2
-mass = 5.0
+mass = 7.0
 continuous_cd = true
 contact_monitor = true
 max_contacts_reported = 1
@@ -327,7 +330,7 @@ mesh = SubResource("BoxMesh_u64xo")
 [node name="neck1" type="RigidBody3D" parent="dino" unique_id=750130624]
 transform = Transform3D(-0.6484388, 0.76126665, 0, -0.7612667, -0.6484388, 0, 0, 0, 0.9999999, 0.33860034, 0.7959281, 0.00070410967)
 collision_mask = 2
-mass = 3.0
+mass = 5.0
 continuous_cd = true
 contact_monitor = true
 max_contacts_reported = 1

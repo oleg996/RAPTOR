@@ -13,5 +13,5 @@ func _process(delta: float) -> void:
 	position.y = get_node(track).global_position.y
 	
 	
-	global_rotation.y = get_node(track).global_rotation.yd
+	#global_rotation.y = get_node(track).global_rotation.yd
 	
