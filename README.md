@@ -1,1 +1,3 @@
 ## Evaluation of unconventional body configu**RA**tions in legged robots: **P**rojec*T* ,design , evaluati*O*n and expe*R*iments.	
+
+![image](./Running.png)
