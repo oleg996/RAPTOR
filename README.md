@@ -16,4 +16,6 @@ The main idea of the project is to experiment and find out and optimal body for 
 ### The training software:
 The training software was made with pytorch and godot as the simulation enviroment.SAC (soft actor critic) was chose as the training method due to it's sample efficiency and stability.  
 
-![image](./Running_vid.mp4)
+https://github.com/user-attachments/assets/2346f3a6-f0a8-4e1b-ba52-ed014743a340
+
+
