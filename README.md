@@ -18,4 +18,4 @@ The training software was made with pytorch and godot as the simulation envirome
 
 https://github.com/user-attachments/assets/2346f3a6-f0a8-4e1b-ba52-ed014743a340
 
-
+The two legged 'raptor' fully capable of walking , running even with external perturbations. 
