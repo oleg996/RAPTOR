@@ -21,9 +21,10 @@ class RunningMeanStd:
         M2 = m_a + m_b + np.square(delta) * self.n * batch_count / tot_count
         new_var = M2 / tot_count
 
-        self.mean = new_mean
-        self.var = new_var
-        self.n = min(tot_count, self.max_count)  # stays adaptive
+        # Update in-place to prevent thread race conditions
+        np.copyto(self.mean, new_mean)
+        np.copyto(self.var, new_var)
+        self.n =tot_count# min(tot_count, self.max_count)
 
     def normalize(self, x):
         return (x - self.mean) / (np.sqrt(self.var) + 1e-8)

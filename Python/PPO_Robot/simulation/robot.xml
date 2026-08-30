@@ -1,0 +1,140 @@
+<mujoco model="bird_biped">
+  <compiler angle="radian" meshdir="meshes/"/>
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+
+  <default>
+    <joint damping="0.5" armature="0.01"/>
+    <geom friction="1.2 0.1 0.1" condim="3"/>
+  </default>
+
+  <worldbody>
+    <geom name="floor" type="plane" size="10 10 0.1" rgba="0.8 0.9 0.8 1"/>
+
+    <body name="body" pos="0 0 0.5">
+      <freejoint name="root"/>
+      <geom name="body_geom"  type="box" size= "0.3 0.1 0.1" mass="1.5"/>
+      <site name="imu_site" pos="0 0 0"/>
+    
+      <body name="rleg1" pos="-0.10 0.2 0">
+        <joint name="right_hip" type="hinge" 
+          axis="0 -1 0"
+          range="-0.5 1.3"
+          armature="0.0245" 
+          damping="0.1"   
+          frictionloss="0.2"
+         />
+        <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.03" mass="0.5"/>
+        
+        <body name="rleg2" pos="0 0 -0.2">
+          <joint name="right_knee" type="hinge" 
+          axis="0 1 0" 
+          range="-0.2 2"
+          armature="0.0245" 
+          damping="0.1" 
+          frictionloss="0.2"
+          />
+          <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.025" mass="0.3"/>
+          
+          <body name="rleg3" pos="0 0 -0.2" euler = "0 -1.1 0">
+            <joint name="right_feet" type="hinge" axis="0 1 0" 
+            limited="true" range="-0.5 0.8" 
+            stiffness="5" damping="1.5" springref="0.2"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.15" size="0.025" mass="0.1"/>
+          </body>
+
+
+        </body>
+
+      </body>
+
+      <body name="lleg1" pos="-0.10 -0.2 0">
+        <joint name="left_hip" type="hinge"
+          axis="0 -1 0"
+          range="-0.5 1.3"
+          armature="0.0245" 
+          damping="0.1" 
+          frictionloss="0.2"
+         />
+        <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.03" mass="0.5"/>
+        
+        <body name="lleg2" pos="0 0 -0.2">
+          <joint name="left_knee" type="hinge"
+          axis="0 1 0" 
+          range="-0.2 2"
+          armature="0.0245" 
+          damping="0.1" 
+          frictionloss="0.2"
+          />
+
+
+          <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.025" mass="0.3"/>
+          
+          <body name="lleg3" pos="0 0 -0.2" euler = "0 -1.1 0">
+            <joint name="left_feet" type="hinge" axis="0 1 0" 
+            limited="true" range="-0.5 0.8" 
+            stiffness="5" damping="1.5" springref="0.2"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.15" size="0.025" mass="0.1"/>
+          </body>
+
+
+        </body>
+
+      </body>
+
+      <body name="tail" pos="-0.3 0 0">
+        <joint name="tail_body" type="hinge" axis="0 0 1" range="-0.6 0.6"/>
+        <geom name="tail_geom" type="capsule" fromto="0 0 0 -0.4 0 0" size="0.03" mass="0.4"/>
+      </body>
+
+      <body name="neck" pos="0.3 0 0">
+        <joint name="neck_body" type="hinge" axis="0 -1 0" range="0 1.57"/>
+        <geom name="neck_geom" type="capsule" fromto="0 0 0 0.3 0 0" size="0.03" mass="0.5"/>
+      </body>
+
+
+      
+
+    </body>
+  </worldbody>
+
+  <actuator>
+
+  <position name="act_l_hip" joint="left_hip" kp="80" kv="3" ctrlrange="-0.5 1.3" forcerange="-15 15"/>
+  <position name="act_l_knee" joint="left_knee" kp="80" kv="3" ctrlrange="-0.2 2" forcerange="-15 15"/>
+
+  <position name="act_r_hip" joint="right_hip" kp="80" kv="3" ctrlrange="-0.5 1.3" forcerange="-15 15"/>
+  <position name="act_r_knee" joint="right_knee" kp="80" kv="3" ctrlrange="-0.2 2" forcerange="-15 15"/>
+
+  <position name="act_tail" joint="tail_body" kp="15" kv="1" ctrlrange="-0.6 0.6" forcerange="-15 15"/>
+  <position name="act_neck" joint="neck_body" kp="15" kv="1" ctrlrange="0 1.57" forcerange="-15 15"/>
+  </actuator>
+
+  <keyframe>
+    <key name="stand" qpos="0 0 0.5 1 0 0 0  0.4 0.8 0.0  0.4 0.8 0.0  0.0 0.7"/>
+  </keyframe>
+
+  <sensor>
+    <!-- IMU Sensors attached to the torso site -->
+    <accelerometer name="imu_accel" site="imu_site"/>
+    <gyro name="imu_gyro" site="imu_site"/>
+    <framequat name="imu_quat" objtype="site" objname="imu_site"/>
+
+    <!-- Joint Encoders (Position & Velocity) -->
+    <jointpos name="jp_l_hip" joint="left_hip"/>
+    <jointvel name="jv_l_hip" joint="left_hip"/>
+
+    <jointpos name="jp_l_knee" joint="left_knee"/>
+    <jointvel name="jv_l_knee" joint="left_knee"/>
+
+    <jointpos name="jp_r_hip" joint="right_hip"/>
+    <jointvel name="jv_r_hip" joint="right_hip"/>
+
+    <jointpos name="jp_r_knee" joint="right_knee"/>
+    <jointvel name="jv_r_knee" joint="right_knee"/>
+    
+    <jointpos name="jp_tail" joint="tail_body"/>
+    <jointvel name="jv_tail" joint="tail_body"/>
+    <jointpos name="jp_neck" joint="neck_body"/>
+    <jointvel name="jv_neck" joint="neck_body"/>
+  </sensor>
+</mujoco>

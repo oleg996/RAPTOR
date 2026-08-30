@@ -109,7 +109,7 @@ class SACCritic(nn.Module):
             nn.SiLU()
         ])
         
-        for hidden_dim in hidden_units[1:]:
+        for hidden_dim in hidden_units:
             trunk_layers.append(ResidualBlock(hidden_dim))
 
         self.trunk = nn.Sequential(*trunk_layers)

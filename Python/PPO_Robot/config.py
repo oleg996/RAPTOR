@@ -5,10 +5,10 @@ class Config:
     ENV_NAME = "Ant-v5"
 
     # Training parameters
-    MAX_EPISODES = 10000
-    MAX_TIMESTEPS = 2048
+    MAX_EPISODES = 5000
+    MAX_TIMESTEPS = 1000
     LOG_INTERVAL = 10
-    BATCH_SIZE = 2048
+    BATCH_SIZE = 512
     REWARD_SCALE = 1
 
     NORM_WARM_UP = 1
@@ -16,7 +16,7 @@ class Config:
     # SAC hyperparameters
     LEARNING_RATE_ACTOR = 1e-3
     LEARNING_RATE_CRITIC = 1e-3
-    LEARNING_RATE_ALPHA = 3e-4  # ← Slower alpha learning prevents entropy collapse
+    LEARNING_RATE_ALPHA = 3e-4
     GAMMA = 0.99 
     TAU = 0.005
 
@@ -25,21 +25,21 @@ class Config:
     MIN_BUFFER_SIZE = 3000
 
     # Updates per environment step
-    GRADIENT_STEPS = 10
+    GRADIENT_STEPS = 1
 
     # Entropy tuning
     AUTO_ENTROPY_TUNING = True
-    INIT_ALPHA = 0.1
+    INIT_ALPHA = 0.2
 
     ACTION_BOUND = 1.0
 
     # Model parameters
-    HIDDEN_UNITS = [256, 256,256]
-    Q_HIDDEN_UNITS = [512, 512,512]
+    HIDDEN_UNITS = [256, 256]
+    Q_HIDDEN_UNITS = [256, 256]
     DEVICE = "cuda"
     # Save/Load paths
     MODEL_DIR = "models"
-    MODEL_NAME = "RC.pth"
+    MODEL_NAME = "test.pth"
     TENSORBOARD_LOG_DIR = "runs"
     LOAD_MODEL = False
     BACKUP_DIR = "./models/backups"

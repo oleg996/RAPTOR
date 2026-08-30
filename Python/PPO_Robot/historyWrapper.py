@@ -1,4 +1,3 @@
-from collections import deque
 import numpy as np
 
 class HistoryWrapper:
@@ -8,41 +7,36 @@ class HistoryWrapper:
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         
-        # Create rolling buffers
-        self.obs_history = deque(maxlen=history_len)
-        self.action_history = deque(maxlen=history_len)
-        
-        # Calculate new state dimension: current obs + past obs + past actions
         self.new_state_dim = (obs_dim * history_len) + (action_dim * (history_len))
+        
+        # Pre-allocate arrays
+        self.obs_history = np.zeros((history_len, obs_dim), dtype=np.float32)
+        self.action_history = np.zeros((history_len, action_dim), dtype=np.float32)
 
     def reset(self):
         obs, info = self.env.reset()
         
-        # Fill the buffers with the initial observation and zero actions
-        for _ in range(self.history_len):
-            self.obs_history.append(obs)
-            
-        for _ in range(self.history_len):
-            self.action_history.append(np.zeros(self.action_dim))
-            
+        # Broadcast the initial observation across all history frames
+        self.obs_history[:] = obs
+        
+        # Keep actions at 0 (neutral / stationary)
+        self.action_history[:] = 0
+        
         return self._get_stacked_state(), info
 
     def step(self, action):
         next_obs, reward, terminated, truncated, info = self.env.step(action)
         
-        # Update buffers
-        self.obs_history.append(next_obs)
-        self.action_history.append(action)
+        # Roll arrays back (shift index 1 to 0, 2 to 1, etc.)
+        self.obs_history[:-1] = self.obs_history[1:]
+        self.action_history[:-1] = self.action_history[1:]
+        
+        # Add new data
+        self.obs_history[-1] = next_obs
+        self.action_history[-1] = action
         
         return self._get_stacked_state(), reward, terminated, truncated, info
 
     def _get_stacked_state(self):
-        # Flatten the deques into a single 1D numpy array
-        stacked_obs = np.concatenate(self.obs_history)
-        if len(self.action_history) > 0:
-            stacked_actions = np.concatenate(self.action_history)
-            return np.concatenate([stacked_obs, stacked_actions])
-        return stacked_obs
-        
-    def close(self):
-        self.env.close()
+        # Flatten in one fast operation
+        return np.concatenate([self.obs_history.flatten(), self.action_history.flatten()])

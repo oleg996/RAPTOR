@@ -39,14 +39,20 @@ class SACAgent:
 
         # Optimizers
         self.actor_optimizer = optim.AdamW(
-            self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR
+            self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR,
+            eps=1e-5,  
+            weight_decay=1e-3,
         )
         self.q1_optimizer = optim.AdamW(
-            self.critic.q1.parameters(), lr=config.LEARNING_RATE_CRITIC
+            self.critic.q1.parameters(), lr=config.LEARNING_RATE_CRITIC,
+            eps=1e-5,  
+            weight_decay=1e-3,
         )
 
         self.q2_optimizer = optim.AdamW(
-            self.critic.q2.parameters(), lr=config.LEARNING_RATE_CRITIC
+            self.critic.q2.parameters(), lr=config.LEARNING_RATE_CRITIC,
+            eps=1e-5,  
+            weight_decay=1e-3,
         )
 
         self.target_entropy = -action_dim  # -9 is fine for 9 dims
@@ -181,7 +187,7 @@ class SACAgent:
             "log_prob": log_probs.mean().item(),
         }
 
-    def update_from_buf(self,norm,buffer):
+    def update_from_buf(self, norm_mean, norm_std, buffer):
         """
         Perform one gradient step.
         Returns dict with losses for logging.
@@ -193,18 +199,9 @@ class SACAgent:
         states, actions, rewards, next_states, dones = buffer
 
 
-
-        # Normalize NOW with current statistics
-        states = torch.clamp(
-            (states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
-            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
-            -5.0, 5.0
-        )
-        next_states = torch.clamp(
-            (next_states - torch.tensor(norm.mean, device=self.device, dtype=torch.float32))
-            / (torch.sqrt(torch.tensor(norm.var, device=self.device, dtype=torch.float32)) + 1e-8),
-            -5.0, 5.0
-        )
+        # Normalize using pre-converted GPU tensors
+        states = torch.clamp((states - norm_mean) / norm_std, -5.0, 5.0)
+        next_states = torch.clamp((next_states - norm_mean) / norm_std, -5.0, 5.0)
 
     
 
@@ -232,7 +229,7 @@ class SACAgent:
         critic_loss = q1_loss + q2_loss
         
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10.0)
         self.q1_optimizer.step()
         self.q2_optimizer.step()
 
@@ -256,7 +253,7 @@ class SACAgent:
         
 
 
-        update_params(self.actor_optimizer,self.actor,actor_loss,1)
+        update_params(self.actor_optimizer,self.actor,actor_loss)
 
         # Unfreeze Q-networks
         for param in self.critic.parameters():
