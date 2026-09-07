@@ -5,7 +5,7 @@ class Config:
     ENV_NAME = "Ant-v5"
 
     # Training parameters
-    MAX_EPISODES = 5000
+    MAX_EPISODES = 10000
     MAX_TIMESTEPS = 1000
     LOG_INTERVAL = 10
     BATCH_SIZE = 512

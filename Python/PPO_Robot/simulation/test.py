@@ -20,7 +20,8 @@ if __name__ == "__main__":
         batch_size=64,
         gamma=0.99,
         gae_lambda=0.95,
-        ent_coef=0.005
+        ent_coef=0.005,
+        device="cpu"
     )
 
     # 1.5M - 2M steps with 8 envs will train in minutes

@@ -14,7 +14,7 @@ from simulation.robot import BirdBipedEnv
 def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True):
     """Evaluate a trained SAC model."""
     config = Config()
-    device = torch.device(config.DEVICE)
+    device = "cpu"
 
     base_env = BirdBipedEnv(model_path="simulation/robot.xml",render_mode="human")
     base_state_dim = base_env.observation_space.shape[0]
