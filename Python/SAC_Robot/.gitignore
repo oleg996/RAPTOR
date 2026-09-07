@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Training artifacts (large / regenerable)
+runs/
+**/events.out.tfevents.*
+*.tmp
+
+# Model weights & checkpoints — do NOT commit binaries
+models/backups/
+*.pth
+*.pt
+*.zip
+
+# Pickled normalizer stats (regenerable from a run; remove this line if you want to track them)
+*.pkl
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Kept intentionally out of source: dumps & scratch
+MJDATA.TXT
+*_dump.txt

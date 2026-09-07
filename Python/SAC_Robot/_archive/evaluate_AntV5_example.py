@@ -11,7 +11,7 @@ import gymnasium as gym
 def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True):
     """Evaluate a trained SAC model."""
     config = Config()
-    device = torch.device(config.DEVICE,)
+    device = torch.device(config.DEVICE)
 
     # Initialize environment
     env = gym.make(config.ENV_NAME, render_mode='human')

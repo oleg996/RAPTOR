@@ -31,11 +31,12 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     # Initialize SAC agent
     agent = SACAgent(state_dim, action_dim, config, device)
 
+    # Load model BEFORE opening the viewer (fail fast if missing)
+    if not os.path.exists(model_path):
+        print(f"Model not found at {model_path}")
+        return
+
     with mujoco.viewer.launch_passive(base_env.model, base_env.data) as viewer:
-        # Load model
-        if not os.path.exists(model_path):
-            print(f"Model not found at {model_path}")
-            return
 
         # Initialize the Normalizer
         norm = inputNorm.RunningMeanStd(shape=(state_dim,))
@@ -83,7 +84,9 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
 
                     # Take step
                     state, reward, terminated, truncated, _ = env.step(action)
-                    done = terminated
+                    # Honor truncated AND enforce a hard step cap so a policy that
+                    # never falls cannot spin this loop forever.
+                    done = terminated or truncated or (time_steps >= config.MAX_TIMESTEPS)
                     viewer.sync()
                     episode_reward += reward
                     time_steps += 1
