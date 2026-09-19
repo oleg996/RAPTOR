@@ -29,6 +29,8 @@ class SACAgent:
         # Critic networks (two Q-networks)
         self.critic = TwinQNetwork(state_dim, action_dim, config.Q_HIDDEN_UNITS).to(device)
 
+        print(device)
+
         # Target critic (for stable Q-value estimation)
         self.critic_target = deepcopy(self.critic)
 
@@ -36,25 +38,21 @@ class SACAgent:
         for param in self.critic_target.parameters():
             param.requires_grad = False
 
-        # Optimizers
-        self.actor_optimizer = optim.AdamW(
-            self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR,
-            eps=1e-5,  
-            weight_decay=1e-3,
+        # Optimizers -- Adam (not AdamW). Weight decay in RL acts as a constant
+        # force pulling params toward zero even when gradient ~0; for the actor's
+        # output layer this biases toward zero-action ("freeze" gait). Original SAC
+        # paper uses Adam without weight decay.
+        self.actor_optimizer = optim.Adam(
+            self.actor.parameters(), lr=config.LEARNING_RATE_ACTOR, eps=1e-5,
         )
-        self.q1_optimizer = optim.AdamW(
-            self.critic.q1.parameters(), lr=config.LEARNING_RATE_CRITIC,
-            eps=1e-5,  
-            weight_decay=1e-3,
+        self.q1_optimizer = optim.Adam(
+            self.critic.q1.parameters(), lr=config.LEARNING_RATE_CRITIC, eps=1e-5,
         )
-
-        self.q2_optimizer = optim.AdamW(
-            self.critic.q2.parameters(), lr=config.LEARNING_RATE_CRITIC,
-            eps=1e-5,  
-            weight_decay=1e-3,
+        self.q2_optimizer = optim.Adam(
+            self.critic.q2.parameters(), lr=config.LEARNING_RATE_CRITIC, eps=1e-5,
         )
 
-        self.target_entropy = -action_dim  # -9 is fine for 9 dims
+        self.target_entropy = config.TARGET_ENTROPY_FRAC * action_dim
         # use zero
         self.log_alpha = torch.tensor(
             [np.log(config.INIT_ALPHA)], requires_grad=True, device=device,dtype=torch.float32
@@ -124,6 +122,7 @@ class SACAgent:
         
         critic_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10.0)
+
         self.q1_optimizer.step()
         self.q2_optimizer.step()
 

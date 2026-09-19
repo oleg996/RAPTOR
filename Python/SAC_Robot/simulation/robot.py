@@ -12,7 +12,7 @@ class BirdBipedEnv(gym.Env):
         self.model = mujoco.MjModel.from_xml_path(model_path)
         self.data = mujoco.MjData(self.model)
 
-        self.frame_skip = 20  # 50 Hz control rate
+        self.frame_skip = 20  # 25? Hz control rate
         self.nu = self.model.nu
 
         self.action_space = spaces.Box(
@@ -197,8 +197,11 @@ class BirdBipedEnv(gym.Env):
         # 1. Forward tracking reward (e.g. target 0.8 m/s instead of infinite speed)
         target_vel = 0.8
         forward_vel = self.data.qvel[0]
+        print(forward_vel)
         reward_forward = np.exp(-2.0 * (forward_vel - target_vel) ** 2) * max(0.0, heading_x)
-        reward_alive = 1.0
+        penalty_backward = 0.5 * np.clip(-forward_vel, 0.0, 1.0)
+
+        reward_alive = 0.1
 
         # 2. Anti-Jumping Penalties
         # NOTE: reduced from 0.5 -> 0.1. A strong penalty here FORCES the flat
@@ -225,6 +228,7 @@ class BirdBipedEnv(gym.Env):
             - cost_pitch 
             - cost_action_rate 
             - cost_ctrl
+            - penalty_backward
         )
         self.prev_action = np.copy(action)
 

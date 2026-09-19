@@ -2,8 +2,8 @@
 
 Reinforcement-learning training / evaluation for the bird-like bipedal robot defined
 in `simulation/robot.xml`. Despite the folder name, the active algorithm is a **custom
-SAC** agent (not SB3 PPO). The SB3-PPO experiment lives in the parent `qwen_test/`
-folder (`test.py` + `robot.py` + `bird_ppo.zip`).
+SAC** agent (not SB3 PPO).A separate, simpler SB3-PPO
+experiment lives in the `simulation` (`test.py` + `robot.py`).
 
 ## Entry points
 
@@ -29,9 +29,6 @@ folder (`test.py` + `robot.py` + `bird_ppo.zip`).
 - `_archive/`        — generated / stale artifacts (kept, not used).
 
 ## Caveats (read before trusting a run)
-
-- `simulation/{robot.py,robot.xml}` now **mirror** the top-level `../robot.py,../robot.xml`
-  (gait shaping + per-reset leg-torque randomization + foot sensors). Keep the two in sync.
 - The long-step reward was tuned under PPO; SAC may need the `w_*` weights retuned after
   training (see `simulation/robot.py` and `AGENTS.md`).
 - `runs/` and `models/` are gitignored (large logs / weights).
@@ -41,5 +38,4 @@ folder (`test.py` + `robot.py` + `bird_ppo.zip`).
 ## Sim2real status
 
 Hardware target: 90 KV BLDC + 10:1 planetary + 20 A (ODrive) ≈ 18 Nm continuous per leg
-joint; tail/neck on servos (COM shift only, lower torque/speed). The top-level `../robot.py`
-models this (torque clamp + randomization); this copy does not yet.
+joint; tail/neck on servos (COM shift only, lower torque/speed).

@@ -10,12 +10,12 @@
   <worldbody>
     <geom name="floor" type="plane" size="10 10 0.1" rgba="0.8 0.9 0.8 1"/>
 
-    <body name="body" pos="0 0 0.5">
+    <body name="body" pos="0 0 0.39">
       <freejoint name="root"/>
-      <geom name="body_geom"  type="box" size= "0.3 0.1 0.1" mass="1.5"/>
+      <geom name="body_geom"  type="box" size= "0.19 0.065 0.065" mass="1.5"/>
       <site name="imu_site" pos="0 0 0"/>
     
-      <body name="rleg1" pos="-0.10 0.2 0">
+      <body name="rleg1" pos="-0.065 0.13 0">
         <joint name="right_hip" type="hinge" 
           axis="0 -1 0"
           range="-0.5 1.3"
@@ -23,9 +23,9 @@
           damping="0.1"   
           frictionloss="0.2"
          />
-        <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.03" mass="0.5"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.03" mass="0.5"/>
         
-        <body name="rleg2" pos="0 0 -0.2">
+        <body name="rleg2" pos="0 0 -0.13">
           <joint name="right_knee" type="hinge" 
           axis="0 1 0" 
           range="-0.2 2"
@@ -33,17 +33,17 @@
           damping="0.1" 
           frictionloss="0.2"
           />
-          <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.025" mass="0.3"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.025" mass="0.3"/>
           
-          <body name="rleg3" pos="0 0 -0.2" euler = "0 -1.1 0">
+          <body name="rleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
             <joint name="right_feet" type="hinge" axis="0 1 0" 
             limited="true" range="-0.5 0.8" 
-            stiffness="5" damping="1.5" springref="0.2"/>
-            <geom type="capsule" fromto="0 0 0 0 0 -0.15" size="0.025" mass="0.1"/>
+            stiffness="8" damping="0.2" springref="0.2"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
 
-              <body name="r_paw" pos="0 0 -0.17" euler = "0 0.4 0">
-                <geom type="box" size= "0.07 0.05 0.01" mass="0.01"/>
-                <site name="r_foot_site" type="box" size="0.07 0.05 0.01" group="5"/>
+              <body name="r_paw" pos="0 0 -0.11" euler = "0 0.4 0">
+                <geom type="box" size= "0.04 0.03 0.01" mass="0.065"/>
+                <site name="r_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
                 <joint name="right_paw" type="hinge" axis="0 1 0" 
                 limited="true" range="-0.5 1" 
                 stiffness="2"/>
@@ -58,7 +58,7 @@
 
       </body>
 
-      <body name="lleg1" pos="-0.10 -0.2 0">
+      <body name="lleg1" pos="-0.065 -0.13 0">
         <joint name="left_hip" type="hinge"
           axis="0 -1 0"
           range="-0.5 1.3"
@@ -66,9 +66,9 @@
           damping="0.1" 
           frictionloss="0.2"
          />
-        <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.03" mass="0.5"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.03" mass="0.5"/>
         
-        <body name="lleg2" pos="0 0 -0.2">
+        <body name="lleg2" pos="0 0 -0.13">
           <joint name="left_knee" type="hinge"
           axis="0 1 0" 
           range="-0.2 2"
@@ -78,18 +78,18 @@
           />
 
 
-          <geom type="capsule" fromto="0 0 0 0 0 -0.2" size="0.025" mass="0.3"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.025" mass="0.3"/>
           
-          <body name="lleg3" pos="0 0 -0.2" euler = "0 -1.1 0">
+          <body name="lleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
             <joint name="left_feet" type="hinge" axis="0 1 0" 
             limited="true" range="-0.5 0.8" 
-            stiffness="5" damping="1.5" springref="0.2"/>
-            <geom type="capsule" fromto="0 0 0 0 0 -0.15" size="0.025" mass="0.1"/>
+            stiffness="8" damping="0.2" springref="0.2"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
 
 
-            <body name="l_paw" pos="0 0 -0.17" euler = "0 0.4 0">
-                <geom type="box" size= "0.07 0.05 0.01" mass="0.01"/>
-                <site name="l_foot_site" type="box" size="0.07 0.05 0.01" group="5"/>
+            <body name="l_paw" pos="0 0 -0.11" euler = "0 0.4 0">
+                <geom type="box" size= "0.04 0.03 0.01" mass="0.065"/>
+                <site name="l_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
                 <joint name="left_paw" type="hinge" axis="0 1 0" 
                 limited="true" range="-0.5 1" 
                 stiffness="2"/>
@@ -104,14 +104,14 @@
 
       </body>
 
-      <body name="tail" pos="-0.3 0 0">
+      <body name="tail" pos="-0.19 0 0">
         <joint name="tail_body" type="hinge" axis="0 0 1" range="-0.6 0.6"/>
-        <geom name="tail_geom" type="capsule" fromto="0 0 0 -0.4 0 0" size="0.03" mass="0.4"/>
+        <geom name="tail_geom" type="capsule" fromto="0 0 0 -0.26 0 0" size="0.03" mass="0.4"/>
       </body>
 
-      <body name="neck" pos="0.3 0 0">
+      <body name="neck" pos="0.19 0 0">
         <joint name="neck_body" type="hinge" axis="0 -1 0" range="0 1.57"/>
-        <geom name="neck_geom" type="capsule" fromto="0 0 0 0.3 0 0" size="0.03" mass="0.5"/>
+        <geom name="neck_geom" type="capsule" fromto="0 0 0 0.19 0 0" size="0.03" mass="0.5"/>
       </body>
 
 
@@ -124,17 +124,17 @@
 
   <!-- LEGS: 90KV BLDC + 10:1 + 20A -> ~18 Nm continuous. forcerange is randomized
        per-reset in robot.py (nominal +/-18). This is now the HARDWARE-ACCURATE cap. -->
-  <position name="act_l_hip"   joint="left_hip"   kp="50" kv="4" ctrlrange="-1 1.3"  forcerange="-18 18"/>
-  <position name="act_l_knee"  joint="left_knee"  kp="50" kv="4" ctrlrange="-0.7 2"  forcerange="-18 18"/>
+  <position name="act_l_hip"   joint="left_hip"   kp="30" kv="2" ctrlrange="-1 1.3"  forcerange="-18 18"/>
+  <position name="act_l_knee"  joint="left_knee"  kp="30" kv="2" ctrlrange="-0.7 2"  forcerange="-18 18"/>
 
-  <position name="act_r_hip"   joint="right_hip"  kp="50" kv="4" ctrlrange="-1 1.3"  forcerange="-18 18"/>
-  <position name="act_r_knee"  joint="right_knee" kp="50" kv="4" ctrlrange="-0.7 2"  forcerange="-18 18"/>
+  <position name="act_r_hip"   joint="right_hip"  kp="30" kv="2" ctrlrange="-1 1.3"  forcerange="-18 18"/>
+  <position name="act_r_knee"  joint="right_knee" kp="30" kv="2" ctrlrange="-0.7 2"  forcerange="-18 18"/>
 
   <!-- TAIL / NECK: non-load-bearing servos for COM shift only. Modelled honestly:
        lower torque (+/-8 Nm servo band) AND a lowpass lag (dyntype) so the policy
        cannot command the fast, stiff tail/neck flicks it would assume from a FOC leg. -->
-  <position name="act_tail" joint="tail_body" kp="6" kv="3" ctrlrange="-0.6 0.6" forcerange="-8 8"/>
-  <position name="act_neck" joint="neck_body" kp="6" kv="3" ctrlrange="0 1.57" forcerange="-8 8"/>
+  <position name="act_tail" joint="tail_body" kp="10" kv="1" ctrlrange="-0.6 0.6" forcerange="-8 8"/>
+  <position name="act_neck" joint="neck_body" kp="10" kv="1" ctrlrange="0 1.57" forcerange="-8 8"/>
   </actuator>
 
   <keyframe>

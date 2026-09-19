@@ -9,6 +9,7 @@ if __name__ == "__main__":
     env = BirdBipedEnv(model_path="simulation/robot.xml")
 
     i = np.ones(1)
+    env.reset()
 
     with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
         while viewer.is_running():

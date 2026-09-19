@@ -6,7 +6,7 @@ Guidance for AI coding agents working in this repo. Read before editing.
 Reinforcement learning for a bird-like **bipedal walker** simulated in **MuJoCo**
 (`simulation/robot.xml`). Despite the folder name, the training/eval path uses a
 **custom SAC** agent (soft actor-critic), not SB3 PPO. A separate, simpler SB3-PPO
-experiment lives in the parent `../qwen_test` tree (`test.py` + `robot.py`).
+experiment lives in the `simulation` (`test.py` + `robot.py`).
 
 ## Hardware target (drives reward/limits)
 - Legs: 90 KV BLDC + 10:1 planetary + 20 A (ODrive FOC) ≈ **18 Nm continuous** per hip/knee.
@@ -62,13 +62,9 @@ SAC specifics that interact with reward changes:
 
 ## Sim2real caveats
 - Tail/neck must stay servo-band (`±8 Nm`, soft). Keep them non-load-bearing.
-- If you add obs noise / action latency / dynamics randomization, put it in `reset()`/`step()`
-  and keep it in sync with `../qwen_test/robot.py` (the two copies are intentionally mirrored).
 
 ## Conventions
 - Hyperparameters live in `config.py`; don't hardcode new magic numbers in scripts.
-- Env/model changes: keep `simulation/{robot.py,robot.xml}` and `../robot.py`,`../robot.xml`
-  in sync (they are mirrored on purpose).
 - Do NOT commit weights/logs — `.gitignore` already excludes `runs/`, `*.pth`, `*.zip`, `*.pkl`,
   tfevents. Don't force-add them.
 

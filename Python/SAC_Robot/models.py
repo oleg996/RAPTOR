@@ -115,7 +115,7 @@ class SACCritic(nn.Module):
         self.trunk = nn.Sequential(*trunk_layers)
         self.output = nn.Linear(hidden_units[-1], 1)
 
-        nn.init.orthogonal_(self.output.weight, gain=1.0)
+        nn.init.orthogonal_(self.output.weight, gain=1e-3)
         nn.init.constant_(self.output.bias, 0.0)
 
     def forward(self, state, action):

@@ -21,7 +21,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     action_dim = base_env.action_space.shape[0]
 
 
-    history_length = 25 # Try 3 to 5 for walking robots
+    history_length = 1 # obs is already Markovian (pos+vel+imu); 25 was massively overkill
     
 
     env = HistoryWrapper(base_env, base_state_dim, action_dim, history_len=history_length)
@@ -90,7 +90,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
                     viewer.sync()
                     episode_reward += reward
                     time_steps += 1
-                    time.sleep(1/50)
+                    time.sleep(1/25)
 
                 episode_rewards.append(episode_reward)
                 episode_lengths.append(time_steps)

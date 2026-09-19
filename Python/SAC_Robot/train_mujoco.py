@@ -1,6 +1,6 @@
+import os
 import torch
 import numpy as np
-import os
 import time
 import datetime
 import glob
@@ -45,7 +45,7 @@ def main():
     action_dim = base_env.action_space.shape[0]
 
 
-    history_length = 25 # Try 3 to 5 for walking robots
+    history_length = 1  # obs is already Markovian (pos+vel+imu); 25 was massively overkill
     
 
     env = HistoryWrapper(base_env, base_state_dim, action_dim, history_len=history_length)
@@ -128,7 +128,10 @@ def main():
 
             # Select action
             if len(agent.replay_buffer) < config.MIN_BUFFER_SIZE:
-                action = np.random.uniform(-1, 1, action_dim)
+                if config.LOAD_MODEL:
+                    action = agent.select_action(state_norm, deterministic=False)
+                else:
+                    action = np.random.uniform(-1, 1, action_dim)
             else:
                 action = agent.select_action(state_norm, deterministic=False)
 
@@ -139,22 +142,23 @@ def main():
             episode_reward += reward
 
 
+            norm_reward = reward * config.REWARD_SCALE
 
-            
             agent.store_transition(
-                state, action, reward * config.REWARD_SCALE,
+                state, action, norm_reward,
                 next_state, float(terminated)
             )
 
             episode_length += 1
 
-            train(agent,config,norm,metricsQue)
+            train(agent, config, norm, metricsQue)
 
-            if metricsQue.qsize() != 0:
-                metrics = metricsQue.get()
-                
-                for key, value in metrics.items():
-                    writer.add_scalar(key, value, total_timesteps)
+            # Throttle TensorBoard writes (was every step -> 7 disk writes/step).
+            if total_timesteps % 100 == 0:
+                while not metricsQue.empty():
+                    metrics = metricsQue.get()
+                    for key, value in metrics.items():
+                        writer.add_scalar(key, value, total_timesteps)
 
             if(t == config.MAX_TIMESTEPS-1):
                 print("END reached")
