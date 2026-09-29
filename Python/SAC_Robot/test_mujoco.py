@@ -8,7 +8,7 @@ import numpy as np
 if __name__ == "__main__":
     env = BirdBipedEnv(model_path="simulation/robot.xml")
 
-    i = np.ones(1)
+    i = np.zeros(1)
     env.reset()
 
     with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
             viewer.sync()
 
-            i = i+0.1
+            i = i+0
 
             time_until_next_step = (env.model.opt.timestep * env.frame_skip) - (time.time() - step_start)
             if time_until_next_step > 0:

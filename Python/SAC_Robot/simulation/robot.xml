@@ -38,7 +38,7 @@
           <body name="rleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
             <joint name="right_feet" type="hinge" axis="0 1 0" 
             limited="true" range="-0.5 0.8" 
-            stiffness="8" damping="0.2" springref="0.2"/>
+            stiffness="20" damping="0.2" springref="0.2"/>
             <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
 
               <body name="r_paw" pos="0 0 -0.11" euler = "0 0.4 0">
@@ -46,7 +46,7 @@
                 <site name="r_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
                 <joint name="right_paw" type="hinge" axis="0 1 0" 
                 limited="true" range="-0.5 1" 
-                stiffness="2"/>
+                stiffness="20"/>
               </body>
 
 
@@ -83,7 +83,7 @@
           <body name="lleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
             <joint name="left_feet" type="hinge" axis="0 1 0" 
             limited="true" range="-0.5 0.8" 
-            stiffness="8" damping="0.2" springref="0.2"/>
+            stiffness="20" damping="0.2" springref="0.2"/>
             <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
 
 
@@ -92,7 +92,7 @@
                 <site name="l_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
                 <joint name="left_paw" type="hinge" axis="0 1 0" 
                 limited="true" range="-0.5 1" 
-                stiffness="2"/>
+                stiffness="20"/>
               </body>
 
 
@@ -106,7 +106,7 @@
 
       <body name="tail" pos="-0.19 0 0">
         <joint name="tail_body" type="hinge" axis="0 0 1" range="-0.6 0.6"/>
-        <geom name="tail_geom" type="capsule" fromto="0 0 0 -0.26 0 0" size="0.03" mass="0.4"/>
+        <geom name="tail_geom" type="capsule" fromto="0 0 0 -0.40 0 0" size="0.03" mass="0.4"/>
       </body>
 
       <body name="neck" pos="0.19 0 0">
@@ -121,20 +121,43 @@
   </worldbody>
 
   <actuator>
+    <!-- LEGS: BLDC + 10:1 gearbox with 30ms 1st-order filter lag -->
+    <general name="act_l_hip" joint="left_hip"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-1 1.3" forcerange="-18 18"/>
 
-  <!-- LEGS: 90KV BLDC + 10:1 + 20A -> ~18 Nm continuous. forcerange is randomized
-       per-reset in robot.py (nominal +/-18). This is now the HARDWARE-ACCURATE cap. -->
-  <position name="act_l_hip"   joint="left_hip"   kp="30" kv="2" ctrlrange="-1 1.3"  forcerange="-18 18"/>
-  <position name="act_l_knee"  joint="left_knee"  kp="30" kv="2" ctrlrange="-0.7 2"  forcerange="-18 18"/>
+    <general name="act_l_knee" joint="left_knee"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-0.7 2" forcerange="-18 18"/>
 
-  <position name="act_r_hip"   joint="right_hip"  kp="30" kv="2" ctrlrange="-1 1.3"  forcerange="-18 18"/>
-  <position name="act_r_knee"  joint="right_knee" kp="30" kv="2" ctrlrange="-0.7 2"  forcerange="-18 18"/>
+    <general name="act_r_hip" joint="right_hip"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-1 1.3" forcerange="-18 18"/>
 
-  <!-- TAIL / NECK: non-load-bearing servos for COM shift only. Modelled honestly:
-       lower torque (+/-8 Nm servo band) AND a lowpass lag (dyntype) so the policy
-       cannot command the fast, stiff tail/neck flicks it would assume from a FOC leg. -->
-  <position name="act_tail" joint="tail_body" kp="10" kv="1" ctrlrange="-0.6 0.6" forcerange="-8 8"/>
-  <position name="act_neck" joint="neck_body" kp="10" kv="1" ctrlrange="0 1.57" forcerange="-8 8"/>
+    <general name="act_r_knee" joint="right_knee"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-0.7 2" forcerange="-18 18"/>
+
+    <!-- TAIL / NECK: Slower servo dynamics (tau = 60ms) -->
+    <general name="act_tail" joint="tail_body"
+             dyntype="filter" dynprm="0.06"
+             gaintype="fixed" gainprm="10"
+             biastype="affine" biasprm="0 -10 -1"
+             ctrlrange="-0.6 0.6" forcerange="-8 8"/>
+
+    <general name="act_neck" joint="neck_body"
+             dyntype="filter" dynprm="0.06"
+             gaintype="fixed" gainprm="10"
+             biastype="affine" biasprm="0 -10 -1"
+             ctrlrange="0 1.57" forcerange="-8 8"/>
   </actuator>
 
   <keyframe>

@@ -18,11 +18,11 @@ class Config:
     NORM_WARM_UP = 1
 
     # SAC hyperparameters
-    LEARNING_RATE_ACTOR = 1e-3
-    LEARNING_RATE_CRITIC = 1e-3
+    LEARNING_RATE_ACTOR = 3e-4
+    LEARNING_RATE_CRITIC = 3e-4
     LEARNING_RATE_ALPHA = 3e-4
     GAMMA = 0.99 
-    TAU = 0.02  # faster target tracking (was 0.005, too slow at 1 grad-step/env-step)
+    TAU = 0.01  # faster target tracking (was 0.005, too slow at 1 grad-step/env-step)
 
     # Reward normalization: DISABLED for SAC (off-policy).
     # Return-based normalization is designed for on-policy (PPO/A2C). It's stateful
@@ -42,10 +42,8 @@ class Config:
 
     # Entropy tuning
     AUTO_ENTROPY_TUNING = True
-    INIT_ALPHA = 1.0
-    # target_entropy multiplier: -0.5 * action_dim keeps more exploration alive
-    # SAC default is -1.0 * action_dim which collapses too early for locomotion
-    TARGET_ENTROPY_FRAC = -0.5
+    INIT_ALPHA = 0.1
+    TARGET_ENTROPY_FRAC = -1
 
     ACTION_BOUND = 1.0
 

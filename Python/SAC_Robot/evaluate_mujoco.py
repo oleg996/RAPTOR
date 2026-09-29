@@ -90,7 +90,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
                     viewer.sync()
                     episode_reward += reward
                     time_steps += 1
-                    time.sleep(1/25)
+                    #time.sleep(1/25)
 
                 episode_rewards.append(episode_reward)
                 episode_lengths.append(time_steps)
