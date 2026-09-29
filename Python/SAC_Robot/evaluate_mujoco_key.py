@@ -20,14 +20,17 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
 
     # 1. Enable manual_control
     base_env = BirdBipedEnv(
-        model_path="simulation/robot.xml", 
-        render_mode="human", 
-        manual_control=True
+        model_path=config.MODEL_PATH,
+        render_mode="human",
+        manual_control=True,
+        config=config,
+        max_steps=config.MAX_TIMESTEPS,
     )
     base_state_dim = base_env.observation_space.shape[0]
     action_dim = base_env.action_space.shape[0]
 
-    history_length = 1
+    # Must match training; previously hardcoded here and could drift.
+    history_length = config.HISTORY_LEN
     env = HistoryWrapper(base_env, base_state_dim, action_dim, history_len=history_length)
     state_dim = env.new_state_dim 
 
@@ -71,6 +74,8 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
 
         norm.mean = checkpoint['obs_mean']
         norm.var = checkpoint['obs_var']
+        norm.n = checkpoint.get('obs_count', 1e-4)
+        norm.freeze()
 
         agent.actor.eval()
         agent.critic.eval()
@@ -87,7 +92,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
 
             while not done:
                 state_norm = norm.normalize(state)
-                state_norm = np.clip(state_norm, -10.0, 10.0)
+                state_norm = np.clip(state_norm, -config.OBS_CLIP, config.OBS_CLIP)
 
                 with torch.no_grad():
                     action = agent.select_action(state_norm, deterministic=deterministic)

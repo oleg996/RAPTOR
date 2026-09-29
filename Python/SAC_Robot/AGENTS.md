@@ -11,57 +11,84 @@ experiment lives in the `simulation` (`test.py` + `robot.py`).
 ## Hardware target (drives reward/limits)
 - Legs: 90 KV BLDC + 10:1 planetary + 20 A (ODrive FOC) ≈ **18 Nm continuous** per hip/knee.
 - Tail & neck: **servos** — non-load-bearing, COM-shift only (low torque, slow).
-- ~4.2 kg robot, 50 Hz control (`timestep 0.002` × `frame_skip 20`).
+- ~4.2 kg robot, **25 Hz** control (`timestep 0.002` × `frame_skip 20` = 0.04 s).
 - The env models this: leg `forcerange ±18` randomized per reset `N(18,2)` clipped `[13,19.8]`;
   tail/neck `forcerange ±8`, low `kp`/high `kv` (soft, slow servos). Don't raise these
   past hardware reality — it trains a policy the robot cannot execute (sim2real gap).
 
 ## Run commands (from this directory)
 ```bash
-python train_mujoco.py        # train in sim (uses config.DEVICE; set cuda/cpu in config.py)
+python train_mujoco.py        # train in sim (device auto-selects cuda, falls back to cpu)
 python evaluate_mujoco.py     # MuJoCo viewer eval; auto-picks latest .pth in models/
+python evaluate_mujoco_key.py # viewer eval with keyboard command override (manual_control)
 python test_mujoco.py         # env smoke test (sine drive, no policy)
 ```
-There is no test suite / linter. Quick sanity check = the three commands above run, plus:
+There is no test suite / linter. Quick sanity check = the commands above run, plus:
 `python -m py_compile *.py simulation/robot.py`.
 
 ## Architecture (active files)
-- `config.py` — all hyperparameters (`Config`). Edit here, not inline.
+- `config.py` — all hyperparameters (`Config`). Edit here, not inline. Also holds
+  `REWARD_WEIGHTS`, the domain-randomization ranges, and the curriculum settings.
 - `sac_agent.py` — SAC. **`update_from_buf(norm_mean, norm_std, buffer)` is the only update
-  path used** (3 args). There is no `update()` anymore.
+  path used** (3 args). There is no `update()` anymore. One merged `critic_optimizer` covers
+  both Q-nets (equivalent to two, since `q1_loss + q2_loss` backprops together through
+  disjoint params); the target update is a fused `torch._foreach_*` pair.
 - `models.py` — `GaussianActor` (residual trunk, tanh-squashed) + `TwinQNetwork` (late fusion).
 - `replay_buffer.py` — GPU-resident circular buffer; stores **raw** (unnormalized) states.
-- `inputNorm.py` — `RunningMeanStd`. Normalization happens at update time, not store time.
+- `inputNorm.py` — `RunningMeanStd`. Normalization happens at update time, not store time,
+  so the normalizer is **frozen** after `Config.NORM_UPDATE_STEPS` (`freeze()`). A still-drifting
+  normalizer re-scales every buffered transition and makes the TD target non-stationary.
 - `historyWrapper.py` — stacks last `history_len` (obs, action) pairs; policy input is
-  `obs_dim*H + action_dim*H` (H=25 → 700 dims). Changing `history_len` changes `state_dim`.
-- `utils.py` — `update_params` helper.
-- `simulation/robot.py` — `BirdBipedEnv` (the reward, gait shaping, torque randomization).
+  `obs_dim*H + action_dim*H`. `Config.HISTORY_LEN = 1` → 30 dims, i.e. the policy sees
+  `[current_obs, previous_action]`. **Changing it changes `state_dim` and invalidates checkpoints.**
+- `utils.py` — `update_params` helper, `seed_everything`.
+- `simulation/robot.py` — `BirdBipedEnv` (the reward, gait shaping, domain randomization).
 - `simulation/robot.xml` — MuJoCo model, incl. foot `site`/`contact`/`framepos`/`framelinvel`
-  sensors used by the gait reward.
+  sensors; `framelinvel` now feeds the slip penalty and `contact` feeds stance detection.
 
-## The reward / gait shaping (the sensitive part)
-The walker had a fast 2–4 Hz shuffle gait. Fixed by **reward shaping** in
-`simulation/robot.py::_gait_reward()`, driven by the foot sensors in `robot.xml`:
-- reward **stride length**, **swing duration**, **swing foot clearance**; penalize **backward
-  foot speed at touchdown**; cut `cost_vertical_vel` 0.5→0.1 (strong vertical penalty forced
-  the flat shuffle).
-- Weights are the `self.w_*` / `self.min_swing` block in `__init__`. Tune incrementally;
-  over-penalizing cadence makes it freeze/moonwalk.
-If you change this reward, **retune from the PPO-tuned starting point and retrain** —
-see algorithm note below.
+## Reward design (read before touching `simulation/robot.py`)
+The task terms are **baseline-subtracted** so that doing nothing scores exactly **0**:
 
-## Algorithm note (PPO → SAC)
-The reward/sensors are algorithm-agnostic, but the weights were sanity-checked under PPO.
-SAC specifics that interact with reward changes:
-- Off-policy + entropy (auto-alpha): event-driven bonuses (fired only at touchdown) can be
-  slow to credit-assign early; if it stalls, raise exploration time or slightly raise the
-  `w_*` weights rather than changing PPO logic.
-- SAC is more sensitive to **reward scale/normalization**; there is no reward normalization
-  here (only obs normalization). Keep rewards in a moderate range.
-- The env is deterministic physics + per-reset torque/noise randomization — fine for SAC.
+```
+sigma_v   = max(sigma_min_speed, sigma_frac_speed * |v*|)
+reward_v  = exp(-((vx - v*)/sigma_v)^2) - exp(-(v*/sigma_v)^2)      # 0 iff vx == 0
+reward_y  = exp(-(yaw_err/sigma_y)^2)     - exp(-(yaw_err_ref/sigma_y)^2)
+```
+`yaw_err_ref` is the heading error captured when the command was issued, i.e. what a robot
+that never rotated would still be carrying. The remaining terms are deliberately small
+(`w_posture` 0.20, `w_alive` 0.05, `w_stance` 0.20) so they cannot out-earn locomotion.
+
+**Do not reintroduce a constant "alive"/"heading" bonus or a flight penalty.** The previous
+reward paid a motionless robot `alive + heading + feet ≈ 1.0`/step while a walking gait
+earned `≈ 0.06`/step more from tracking — measured across 12 command/kernel configurations,
+standing still strictly dominated every open-loop gait. Stance is now rewarded *only* when the
+command asks the robot to hold still, and walking is shaped by a **slip** penalty on loaded
+feet instead of by punishing flight.
+
+The tracking kernel is `sigma`-scaled by the command magnitude on purpose: a fixed-width
+Gaussian has headroom `1 - exp(-k*v*^2)`, which collapses to ≈0.09 at 0.3 m/s and is then
+smaller than the cost of walking, so slow gaits stay net-negative however well they track.
+
+Commands come from a **speed curriculum** (`cmd_speed_max`, seeded at 0.3 m/s) that grows
+only when the policy's normalized tracking quality clears `CURRICULUM_UP_THRESHOLD`.
+
+## Algorithm notes (PPO → SAC)
+- Off-policy + auto-alpha. `TARGET_ENTROPY_FRAC = -0.5` is deliberate: a tanh-squashed policy
+  in `[-1,1]^6` has a **maximum** differential entropy of `6·ln2 ≈ 4.16`, so the old `-1.0`
+  (target −6) was unreachable and drove alpha to 0. Don't set the target below `-ln2·action_dim`.
+- `GRADIENT_STEPS = 2` (UTD 2). Measured ≈130 updates/s on CUDA, ≈26 on CPU — the env itself
+  runs ≈4200 steps/s, so CPU is gradient-bound at ~5× lower throughput.
+- No reward normalization (only observation normalization). `REWARD_SCALE` is the knob keeping
+  Q-targets in range; keep per-step reward O(1).
+- Deterministic physics + per-reset randomization of torque cap, foot friction, motor `kp` and
+  actuator filter lag — fine for SAC, and the kp/friction/lag ranges are the sim2real lever.
 
 ## Sim2real caveats
 - Tail/neck must stay servo-band (`±8 Nm`, soft). Keep them non-load-bearing.
+- The observation deliberately **excludes** base linear velocity and base height: on real
+  hardware neither is directly measurable without a state estimator. If you add them for
+  training, you must add the matching estimator to the real-robot path or the policy will
+  not transfer.
 
 ## Conventions
 - Hyperparameters live in `config.py`; don't hardcode new magic numbers in scripts.
