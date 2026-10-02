@@ -20,21 +20,28 @@ DEFAULT_REWARD_WEIGHTS = {
     "sigma_frac_speed": 0.5,
     "sigma_min_heading": 0.15,
     "sigma_frac_heading": 0.5,
+    # w_posture is a *cost* on (1 - cos(tilt)), i.e. exactly 0 when level.
+    # It used to be a POSITIVE bonus of w_posture * max(0, upright), which paid
+    # 0.20/step at ANY tilt and is flat to first order near 0 -- so it neither
+    # rewarded nor punished being level, while diluting the task terms.
     "w_posture": 0.20,
     "w_stance": 0.20,
     "w_alive": 0.05,
     "w_slip": 0.10,
     "w_lateral": 0.30,
-    "w_roll": 2.00,
-    "w_pitch": 1.00,
+    # Balance weights. NO dead zone: the old roll_deadzone/pitch_deadzone made
+    # the cost *identically zero* for |roll| < 0.08 rad (4.6 deg) and quadratic
+    # beyond, so the whole lateral band the policy actually lived in was flat
+    # and roll=0 was indistinguishable from roll=7 deg. See _compute_reward.
+    "w_roll": 6.00,
+    "w_pitch": 3.00,
+    "w_roll_rate": 0.02,  # gyro[0], rad/s: damps the weakly damped lateral mode
     "w_action_rate": 0.02,
     "w_ctrl": 0.001,
     "w_joint_acc": 1e-6,
     "w_torque": 5e-4,
     "w_tail": 0.50,
     "w_motion": 0.01,
-    "roll_deadzone": 0.08,
-    "pitch_deadzone": 0.10,
     "torque_free_nm": 8.0,
     "tail_deadzone": 0.30,
     "joint_vel_free": 10.0,
@@ -484,11 +491,15 @@ class BirdBipedEnv(gym.Env):
         reward_heading = np.exp(-((yaw_err / sigma_y) ** 2)) - base_head
 
         # ------------------------------------------------------------------
-        # 3. Posture: smooth uprightness with no dead zone. This is the primary
-        #    balance signal; the old roll/pitch costs had ~0.1 rad dead zones,
-        #    so the robot could lean 30 deg forward and dive for free.
+        # 3. Posture, BASELINE-SUBTRACTED against perfectly upright.
+        #    Was `w_posture * max(0, upright)` -- a POSITIVE bonus worth 0.20 at
+        #    every tilt including 45 deg, and cos(tilt) is flat to first order
+        #    near 0, so it had NO restoring gradient exactly where a level
+        #    robot lives. It also paid 35% of the net reward just for existing,
+        #    which diluted every task term. Now it is a pure cost, exactly 0 at
+        #    roll = pitch = 0.
         # ------------------------------------------------------------------
-        reward_posture = W["w_posture"] * max(0.0, upright)
+        reward_posture = -W["w_posture"] * (1.0 - max(0.0, upright))
 
         # ------------------------------------------------------------------
         # 4. Stance bonus ONLY when the command asks the robot to hold still.
@@ -530,11 +541,23 @@ class BirdBipedEnv(gym.Env):
         cost_ctrl = W["w_ctrl"] * np.sum(np.square(action))
         cost_lateral_drift = W["w_lateral"] * (local_vy**2)
 
-        roll_err = max(0.0, abs(roll) - W["roll_deadzone"])
-        cost_roll = W["w_roll"] * (roll_err**2)
+        # Roll is the term that was actually broken. The dead zone made the
+        # cost exactly 0 for |roll| < 0.08 rad, and the policy's free-response
+        # roll oscillates with ~0.14 rad amplitude, so the entire lateral band
+        # it inhabited cost ~0.01/step out of a 0.42/step task reward -- the
+        # agent could not tell a 7 deg lean from level. Keep the quadratic
+        # (no dead zone): it is zero-gradient AT zero, which is the correct
+        # shape for a balance term, and grows fast enough that a real lean is
+        # never cheaper than the gait it buys.
+        cost_roll = W["w_roll"] * (roll**2)
+        cost_pitch = W["w_pitch"] * (pitch**2)
 
-        pitch_err = max(0.0, abs(pitch) - W["pitch_deadzone"])
-        cost_pitch = W["w_pitch"] * (pitch_err**2)
+        # Roll-rate damping. gyro[0] is the body-frame angular velocity about
+        # the forward (roll) axis. Without it the policy converges to a
+        # constant offset plus a persistent rocking oscillation; penalizing the
+        # rate buys a steady pose and keeps normal walking sway cheap.
+        roll_rate = float(self.data.sensor("imu_gyro").data[0])
+        cost_roll_rate = W["w_roll_rate"] * (roll_rate**2)
 
         excess_torque = np.maximum(0.0, np.abs(self.data.actuator_force) - W["torque_free_nm"])
         cost_torque = W["w_torque"] * np.sum(np.square(excess_torque))
@@ -554,6 +577,7 @@ class BirdBipedEnv(gym.Env):
             - cost_slip
             - cost_motion
             - cost_roll
+            - cost_roll_rate
             - cost_pitch
             - cost_lateral_drift
             - cost_action_rate
@@ -568,5 +592,9 @@ class BirdBipedEnv(gym.Env):
             "reward_heading": float(reward_heading),
             "cmd_speed": float(self.target_speed),
             "feet_in_contact": feet_in_contact,
+            # Logged so a lean can be caught during training rather than at eval.
+            "roll_deg": float(np.degrees(roll)),
+            "pitch_deg": float(np.degrees(pitch)),
+            "roll_rate": roll_rate,
         }
         return float(reward), info

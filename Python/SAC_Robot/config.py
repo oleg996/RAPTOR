@@ -15,6 +15,12 @@ class Config:
     MODEL_PATH = "simulation/robot.xml"
     MAX_TIMESTEPS = 1000  # env also truncates at this many steps
     LOG_INTERVAL = 10
+    # train_mujoco.py loops `range(1, MAX_EPISODES + 1)` and stamps this value
+    # into the final checkpoint. It was missing here, so training crashed with
+    # `AttributeError: 'Config' object has no attribute 'MAX_EPISODES'` on the
+    # first episode -- every checkpoint in models/ predates the current reward,
+    # which is why nothing had been retrained since the reward redesign.
+    MAX_EPISODES = 20000
 
     # Observation/action stacking. MUST match between train and eval, so it
     # lives here rather than being hardcoded in each script. 1 means the policy
@@ -111,21 +117,40 @@ class Config:
         "sigma_frac_speed": 0.5,
         "sigma_min_heading": 0.15,
         "sigma_frac_heading": 0.5,
+        # BALANCE. w_posture is a COST on (1 - cos(total tilt)): exactly 0 when
+        # level, growing smoothly. It used to be a positive bonus of
+        # w_posture * max(0, upright), which paid the same 0.20 at any tilt,
+        # was flat to first order near 0 (no restoring gradient where a level
+        # robot lives), and handed out 35% of the net reward just for existing.
+        #
+        # w_roll/w_pitch have NO dead zone and are the real balance signal. The
+        # old roll_deadzone=0.08 / pitch_deadzone=0.10 made the cost identically
+        # zero inside ~4.6 deg, and the trained policy settled into a persistent
+        # 7 deg roll because that whole band cost ~0.011/step against a
+        # 0.42/step task reward -- i.e. level and 7-deg-lean were the same state
+        # to the critic. Quadratic (no dead zone) is the right shape here: zero
+        # gradient AT zero, and fast enough growth that a real lean is never
+        # cheaper than the gait it buys. Roll is weighted above pitch because
+        # the reported failure is lateral, and a bird biped legitimately pitches
+        # forward under acceleration.
+        #
+        # w_roll_rate damps the weakly damped lateral rocking mode via gyro[0]
+        # (body angular velocity about the forward axis). Cheap enough
+        # (0.02/rad^2/s^2) that normal walking sway is not punished.
         "w_posture": 0.20,
         "w_stance": 0.20,
         "w_alive": 0.05,
         "w_slip": 0.10,
         "w_lateral": 0.30,
-        "w_roll": 2.00,
-        "w_pitch": 1.00,
+        "w_roll": 6.00,
+        "w_pitch": 3.00,
+        "w_roll_rate": 0.02,
         "w_action_rate": 0.02,
         "w_ctrl": 0.001,
         "w_joint_acc": 1e-6,
         "w_torque": 5e-4,
         "w_tail": 0.50,
         "w_motion": 0.01,
-        "roll_deadzone": 0.08,
-        "pitch_deadzone": 0.10,
         "torque_free_nm": 8.0,
         "tail_deadzone": 0.30,
         "joint_vel_free": 10.0,
@@ -152,7 +177,7 @@ class Config:
     # ======================================================================
     # Device / IO
     # ======================================================================
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    DEVICE = "cpu" # tmp for eval "cuda" if torch.cuda.is_available() else "cpu"
     MODEL_DIR = "models"
     MODEL_NAME = "test.pth"
     TENSORBOARD_LOG_DIR = "runs"

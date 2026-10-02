@@ -95,6 +95,8 @@ def main():
     episode_rewards = []
     episode_lengths = []
     total_timesteps = 0
+    ep_roll = []
+    ep_pitch = []
 
     backup_dir = config.BACKUP_DIR
     os.makedirs(backup_dir, exist_ok=True)
@@ -144,6 +146,8 @@ def main():
         episode_length = 0
         speed_r = 0.0
         head_r = 0.0
+        roll_acc = 0.0
+        pitch_acc = 0.0
 
         for _ in range(config.MAX_TIMESTEPS):
             total_timesteps += 1
@@ -170,6 +174,8 @@ def main():
             episode_reward += reward
             speed_r += info.get("reward_speed", 0.0)
             head_r += info.get("reward_heading", 0.0)
+            roll_acc += info.get("roll_deg", 0.0)
+            pitch_acc += info.get("pitch_deg", 0.0)
 
             agent.store_transition(
                 state, action, reward * config.REWARD_SCALE, next_state, float(terminated)
@@ -191,6 +197,8 @@ def main():
         episode_lengths.append(episode_length)
         ep_speed_reward.append(speed_r / max(1, episode_length))
         ep_head_reward.append(head_r / max(1, episode_length))
+        ep_roll.append(roll_acc / max(1, episode_length))
+        ep_pitch.append(pitch_acc / max(1, episode_length))
 
         writer.add_scalar("reward/raw_episode_reward", episode_reward, episode)
 
@@ -202,6 +210,8 @@ def main():
             avg_length = int(np.mean(episode_lengths[-window:]))
             avg_speed_r = np.mean(ep_speed_reward[-window:])
             avg_head_r = np.mean(ep_head_reward[-window:])
+            avg_roll = np.mean(ep_roll[-window:])
+            avg_pitch = np.mean(ep_pitch[-window:])
 
             print(
                 f"Episode {episode:5d} | "
@@ -210,6 +220,8 @@ def main():
                 f"Len: {avg_length:4d} | "
                 f"speed_r: {avg_speed_r:+.3f} | "
                 f"head_r: {avg_head_r:+.3f} | "
+                f"roll: {avg_roll:+5.1f}d | "
+                f"pitch: {avg_pitch:+5.1f}d | "
                 f"v*: {base_env.cmd_speed_max:.2f} | "
                 f"Buf: {len(agent.replay_buffer):7d} | "
                 f"a: {agent.log_alpha.exp().item():.4f} | "
@@ -225,6 +237,11 @@ def main():
             writer.add_scalar("reward/speed_component", avg_speed_r, episode)
             writer.add_scalar("reward/heading_component", avg_head_r, episode)
             writer.add_scalar("curriculum/cmd_speed_max", base_env.cmd_speed_max, episode)
+            # Balance. A persistent nonzero MEAN roll here is the tilted-pose
+            # failure: it means the policy has found a leaning equilibrium
+            # that the reward tolerates. std is normal gait sway.
+            writer.add_scalar("balance/mean_roll_deg", avg_roll, episode)
+            writer.add_scalar("balance/mean_pitch_deg", avg_pitch, episode)
             writer.add_scalar("sac/alpha", agent.log_alpha.exp().item(), episode)
 
         # Periodic backup
