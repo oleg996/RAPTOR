@@ -194,7 +194,7 @@ class BirdBipedEnv(gym.Env):
                 self.target_speed_t, self.target_yaw_t  = self._sample_command()
                 self.command_timer = 0
 
-        change_rate =0.05
+        change_rate =0.1
         
         self.target_speed = (self.target_speed*(1-change_rate)) + self.target_speed_t*change_rate
 
@@ -256,7 +256,7 @@ class BirdBipedEnv(gym.Env):
         cost_lateral_drift = 0.3 * (local_vy ** 2)
 
         # Safe zone of ~0.08 rad (~5 degrees)
-        roll_err = max(0.0, abs(roll) - 0.08)
+        roll_err = max(0.0, abs(roll) - 0.00)
         cost_roll = 2.0 * (roll_err ** 2)
 
         # Safe zone of ~0.1 rad (~6 degrees) for natural forward pitch
