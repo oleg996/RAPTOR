@@ -1,0 +1,201 @@
+<mujoco model="bird_biped">
+  <compiler angle="radian" meshdir="meshes/"/>
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+
+  <default>
+    <joint damping="0.5" armature="0.01"/>
+    <geom friction="1.2 0.1 0.1" condim="3"/>
+  </default>
+
+  <worldbody>
+    <geom name="floor" type="plane" size="10 10 0.1" rgba="0.8 0.9 0.8 1"/>
+
+    <body name="body" pos="0 0 0.39">
+      <freejoint name="root"/>
+      <geom name="body_geom"  type="box" size= "0.19 0.065 0.065" mass="1.5"/>
+      <site name="imu_site" pos="0 0 0"/>
+    
+      <body name="rleg1" pos="-0.065 0.13 0">
+        <joint name="right_hip" type="hinge" 
+          axis="0 -1 0"
+          range="-0.5 1.3"
+          armature="0.0245" 
+          damping="0.1"   
+          frictionloss="0.2"
+         />
+        <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.03" mass="0.5"/>
+        
+        <body name="rleg2" pos="0 0 -0.13">
+          <joint name="right_knee" type="hinge" 
+          axis="0 1 0" 
+          range="-0.2 2"
+          armature="0.0245" 
+          damping="0.1" 
+          frictionloss="0.2"
+          />
+          <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.025" mass="0.3"/>
+          
+          <body name="rleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
+            <joint name="right_feet" type="hinge" axis="0 1 0" 
+            limited="true" range="-0.5 0.8" 
+            stiffness="20" damping="0.6" springref="0.1"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
+
+              <body name="r_paw" pos="0 0 -0.11" euler = "0 0.4 0">
+                <geom type="box" size= "0.04 0.03 0.01" mass="0.065"/>
+                <site name="r_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
+                <joint name="right_paw" type="hinge" axis="0 1 0" 
+                limited="true" range="-1 1" 
+                stiffness="5" damping="0.3" springref="0.0"/>
+              </body>
+
+
+
+          </body>
+
+
+        </body>
+
+      </body>
+
+      <body name="lleg1" pos="-0.065 -0.13 0">
+        <joint name="left_hip" type="hinge"
+          axis="0 -1 0"
+          range="-0.5 1.3"
+          armature="0.0245" 
+          damping="0.1" 
+          frictionloss="0.2"
+         />
+        <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.03" mass="0.5"/>
+        
+        <body name="lleg2" pos="0 0 -0.13">
+          <joint name="left_knee" type="hinge"
+          axis="0 1 0" 
+          range="-0.2 2"
+          armature="0.0245" 
+          damping="0.1" 
+          frictionloss="0.2"
+          />
+
+
+          <geom type="capsule" fromto="0 0 0 0 0 -0.13" size="0.025" mass="0.3"/>
+          
+          <body name="lleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
+            <joint name="left_feet" type="hinge" axis="0 1 0" 
+            limited="true" range="-0.5 0.8" 
+            stiffness="20" damping="0.6" springref="0.1"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
+
+
+            <body name="l_paw" pos="0 0 -0.11" euler = "0 0.4 0">
+                <geom type="box" size= "0.04 0.03 0.01" mass="0.065"/>
+                <site name="l_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
+                <joint name="left_paw" type="hinge" axis="0 1 0" 
+                limited="true" range="-1 1" 
+                stiffness="5" damping="0.3" springref="0.0"/>
+              </body>
+
+
+
+          </body>
+
+
+        </body>
+
+      </body>
+
+      <body name="tail" pos="-0.19 0 0">
+        <joint name="tail_body" type="hinge" axis="0 0 1" range="-0.6 0.6"/>
+        <geom name="tail_geom" type="capsule" fromto="0 0 0 -0.40 0 0" size="0.03" mass="0.4"/>
+      </body>
+
+      <body name="neck" pos="0.19 0 0">
+        <joint name="neck_body" type="hinge" axis="0 -1 0" range="0 1.57"/>
+        <geom name="neck_geom" type="capsule" fromto="0 0 0 0.19 0 0" size="0.03" mass="0.5"/>
+      </body>
+
+
+      
+
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- LEGS: BLDC + 10:1 gearbox with 30ms 1st-order filter lag -->
+    <general name="act_l_hip" joint="left_hip"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-1 1.3" forcerange="-18 18"/>
+
+    <general name="act_l_knee" joint="left_knee"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-0.7 2" forcerange="-18 18"/>
+
+    <general name="act_r_hip" joint="right_hip"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-1 1.3" forcerange="-18 18"/>
+
+    <general name="act_r_knee" joint="right_knee"
+             dyntype="filter" dynprm="0.03"
+             gaintype="fixed" gainprm="30"
+             biastype="affine" biasprm="0 -30 -2"
+             ctrlrange="-0.7 2" forcerange="-18 18"/>
+
+    <!-- TAIL / NECK: Slower servo dynamics (tau = 60ms) -->
+    <general name="act_tail" joint="tail_body"
+             dyntype="filter" dynprm="0.06"
+             gaintype="fixed" gainprm="10"
+             biastype="affine" biasprm="0 -10 -1"
+             ctrlrange="-0.6 0.6" forcerange="-8 8"/>
+
+    <general name="act_neck" joint="neck_body"
+             dyntype="filter" dynprm="0.06"
+             gaintype="fixed" gainprm="10"
+             biastype="affine" biasprm="0 -10 -1"
+             ctrlrange="0 1.57" forcerange="-8 8"/>
+  </actuator>
+
+  <keyframe>
+     <key name="stand" qpos="0 0 0.5 1 0 0 0  0.8 1.3 0.0 0.0  0.8 1.3 0.0 0.0  0 0.7"/>
+  </keyframe>
+
+  <sensor>
+    <!-- IMU Sensors attached to the torso site -->
+    <accelerometer name="imu_accel" site="imu_site"/>
+    <gyro name="imu_gyro" site="imu_site"/>
+    <framequat name="imu_quat" objtype="site" objname="imu_site"/>
+
+    <!-- Joint Encoders (Position & Velocity) -->
+    <jointpos name="jp_l_hip" joint="left_hip"/>
+    <jointvel name="jv_l_hip" joint="left_hip"/>
+
+    <jointpos name="jp_l_knee" joint="left_knee"/>
+    <jointvel name="jv_l_knee" joint="left_knee"/>
+
+    <jointpos name="jp_r_hip" joint="right_hip"/>
+    <jointvel name="jv_r_hip" joint="right_hip"/>
+
+    <jointpos name="jp_r_knee" joint="right_knee"/>
+    <jointvel name="jv_r_knee" joint="right_knee"/>
+    
+    <jointpos name="jp_tail" joint="tail_body"/>
+    <jointvel name="jv_tail" joint="tail_body"/>
+    <jointpos name="jp_neck" joint="neck_body"/>
+    <jointvel name="jv_neck" joint="neck_body"/>
+
+    <!-- Foot contact (stance/swing detection) -->
+    <contact name="l_foot_contact" site="l_foot_site"/>
+    <contact name="r_foot_contact" site="r_foot_site"/>
+
+    <!-- Foot world position: framepos = [x y z ...] and framevel = [lin v (3) ...] -->
+    <framepos name="fp_lfoot" objtype="site" objname="l_foot_site"/>
+    <framepos name="fp_rfoot" objtype="site" objname="r_foot_site"/>
+    <framelinvel name="fv_lfoot" objtype="site" objname="l_foot_site"/>
+    <framelinvel name="fv_rfoot" objtype="site" objname="r_foot_site"/>
+  </sensor>
+</mujoco>

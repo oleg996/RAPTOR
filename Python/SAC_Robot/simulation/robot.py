@@ -237,14 +237,21 @@ class BirdBipedEnv(gym.Env):
         # 2. Foot contact logic:
         # - When stationary (is_stationary close to 1): want BOTH feet on ground (2).
         # - When walking/turning: want active stepping (1 or 2 feet, but 0 is penalized).
+
+        
+
         if is_stationary > 0.7:
-            reward_feet = 0.3 if feet_in_contact >= 1 else -0.3
+            reward_feet = 0.3 if feet_in_contact == 2 else -0.3
+            roll_band = 0.0 # stand still
+            cost_stand_drift = 2.0 * (local_vx**2 + local_vy**2) #No drifting
         else:
             reward_feet = 0.2 if feet_in_contact in [1, 2] else -0.4
+            cost_stand_drift = 0.0
+            roll_band = 0.1
 
         # Free movement up to 10 rad/s; penalize only dangerous/chattering spikes above 10 rad/s
         joint_vel = self.data.qvel[6:]
-        excess_vel = np.maximum(0.0, np.abs(joint_vel) - 10.0)
+        excess_vel = np.maximum(0.0, np.abs(joint_vel) - 5.0)
         cost_motion = 0.01 * np.sum(np.square(excess_vel))
 
         # 4. Penalties
@@ -256,7 +263,7 @@ class BirdBipedEnv(gym.Env):
         cost_lateral_drift = 0.3 * (local_vy ** 2)
 
         # Safe zone of ~0.08 rad (~5 degrees)
-        roll_err = max(0.0, abs(roll) - 0.00)
+        roll_err = max(0.0, abs(roll) - roll_band)
         cost_roll = 2.0 * (roll_err ** 2)
 
         # Safe zone of ~0.1 rad (~6 degrees) for natural forward pitch
@@ -272,6 +279,21 @@ class BirdBipedEnv(gym.Env):
         tail_joint_pos = self.data.sensor("jp_tail").data[0]
         tail_excess = max(0.0, abs(tail_joint_pos) - 0.3)
         cost_tail = 0.5 * (tail_excess ** 2)
+        # Foot slip
+        v_lfoot = self.data.sensor("fv_lfoot").data[:2]  # x, y velocity
+        v_rfoot = self.data.sensor("fv_rfoot").data[:2]
+
+        l_contact = self.data.sensor("l_foot_contact").data[0] > self.contact_thr
+        r_contact = self.data.sensor("r_foot_contact").data[0] > self.contact_thr
+
+        cost_foot_slip = 0.0
+        if l_contact:
+            cost_foot_slip += np.sum(np.square(v_lfoot))
+        if r_contact:
+            cost_foot_slip += np.sum(np.square(v_rfoot))
+
+        cost_foot_slip *= 2.0 
+
 
         reward = (
             reward_tracking
@@ -286,6 +308,8 @@ class BirdBipedEnv(gym.Env):
             - cost_joint_acc
             - cost_torque 
             - cost_tail
+            - cost_foot_slip
+            - cost_stand_drift
         )
 
         self.prev_action = np.copy(action)

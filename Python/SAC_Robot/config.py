@@ -21,8 +21,8 @@ class Config:
     LEARNING_RATE_ACTOR = 3e-4
     LEARNING_RATE_CRITIC = 3e-4
     LEARNING_RATE_ALPHA = 3e-4
-    GAMMA = 0.99 
-    TAU = 0.01  # faster target tracking (was 0.005, too slow at 1 grad-step/env-step)
+    GAMMA = 0.98 
+    TAU = 0.005  # faster target tracking (was 0.005, too slow at 1 grad-step/env-step)
 
     # Reward normalization: DISABLED for SAC (off-policy).
     # Return-based normalization is designed for on-policy (PPO/A2C). It's stateful

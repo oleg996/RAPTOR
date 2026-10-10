@@ -38,15 +38,15 @@
           <body name="rleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
             <joint name="right_feet" type="hinge" axis="0 1 0" 
             limited="true" range="-0.5 0.8" 
-            stiffness="20" damping="0.2" springref="0.2"/>
+            stiffness="20" damping="0.6" springref="0.1"/>
             <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
 
               <body name="r_paw" pos="0 0 -0.11" euler = "0 0.4 0">
                 <geom type="box" size= "0.04 0.03 0.01" mass="0.065"/>
                 <site name="r_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
                 <joint name="right_paw" type="hinge" axis="0 1 0" 
-                limited="true" range="-0.5 1" 
-                stiffness="20"/>
+                limited="true" range="-1 1" 
+                stiffness="5" damping="0.3" springref="0.1"/>
               </body>
 
 
@@ -83,7 +83,7 @@
           <body name="lleg3" pos="0 0 -0.13" euler = "0 -1.1 0">
             <joint name="left_feet" type="hinge" axis="0 1 0" 
             limited="true" range="-0.5 0.8" 
-            stiffness="20" damping="0.2" springref="0.2"/>
+            stiffness="20" damping="0.6" springref="0.1"/>
             <geom type="capsule" fromto="0 0 0 0 0 -0.09" size="0.025" mass="0.1"/>
 
 
@@ -91,8 +91,8 @@
                 <geom type="box" size= "0.04 0.03 0.01" mass="0.065"/>
                 <site name="l_foot_site" type="box" size="0.04 0.03 0.01" group="5"/>
                 <joint name="left_paw" type="hinge" axis="0 1 0" 
-                limited="true" range="-0.5 1" 
-                stiffness="20"/>
+                limited="true" range="-1 1" 
+                stiffness="5" damping="0.3" springref="0.1"/>
               </body>
 
 

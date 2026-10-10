@@ -42,8 +42,8 @@ def evaluate_model(model_path, num_episodes=10, render=True, deterministic=True)
     # Left/Right arrows: Heading (+/- 15 degrees)
     # Space: Stop / zero speed
     def key_callback(keycode):
-        SPEED_STEP = 0.1
-        YAW_STEP = np.deg2rad(15)
+        SPEED_STEP = 0.25
+        YAW_STEP = np.deg2rad(25)
 
         if keycode == 265:  # Up Arrow
             base_env.target_speed_t = float(np.clip(base_env.target_speed + SPEED_STEP, 0.0, 1.0))
